@@ -110,6 +110,20 @@ export function SnapScaleTool() {
   const { toast } = useToast();
   const isUpdatingRef = useRef(false);
   
+  // Check browser compatibility
+  useEffect(() => {
+    const checkBrowserSupport = () => {
+      if (!HTMLCanvasElement.prototype.toBlob) {
+        toast({
+          variant: 'destructive',
+          title: 'Browser Not Supported',
+          description: 'Your browser does not support image downloads. Please update your browser.'
+        });
+      }
+    };
+    checkBrowserSupport();
+  }, [toast]);
+  
   const sampleImages = [
     {
       id: 'landscape',
@@ -451,6 +465,15 @@ export function SnapScaleTool() {
           targetHeight = Math.round((image.height * (percentage || 100)) / 100);
         }
 
+        // Validate canvas dimensions
+        if (targetWidth <= 0 || targetHeight <= 0) {
+          throw new Error('Invalid dimensions: width and height must be greater than 0');
+        }
+        
+        if (targetWidth > 32767 || targetHeight > 32767) {
+          throw new Error('Image dimensions too large. Maximum size is 32767x32767 pixels.');
+        }
+
         canvas.width = targetWidth;
         canvas.height = targetHeight;
 
@@ -482,16 +505,75 @@ export function SnapScaleTool() {
                     reject(new Error(`Blob creation failed for ${image.name}`));
                     return;
                 }
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
-                a.href = url;
-                a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                resolve();
+                
+                try {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
+                    a.href = url;
+                    a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                    a.style.display = 'none';
+                    
+                    // Add to DOM, click, then remove
+                    document.body.appendChild(a);
+                    
+                    // Try direct click first
+                    try {
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        toast({ 
+                            title: 'Download Started', 
+                            description: `${originalName}-${targetWidth}x${targetHeight}.${values.format} is downloading.` 
+                        });
+                        
+                        resolve();
+                    } catch (clickError) {
+                        // Fallback: Open in new window if click fails
+                        console.warn('Direct download failed, trying fallback method:', clickError);
+                        
+                        try {
+                            const newWindow = window.open(url, '_blank');
+                            if (newWindow) {
+                                newWindow.document.title = `Download: ${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                                toast({ 
+                                    title: 'Download Ready', 
+                                    description: 'Image opened in new tab. Right-click and save to download.' 
+                                });
+                            } else {
+                                throw new Error('Popup blocked');
+                            }
+                        } catch (popupError) {
+                            // Final fallback: Copy URL to clipboard
+                            navigator.clipboard.writeText(url).then(() => {
+                                toast({ 
+                                    title: 'Download URL Copied', 
+                                    description: 'Paste the URL in a new tab to download the image.' 
+                                });
+                            }).catch(() => {
+                                toast({ 
+                                    variant: 'destructive',
+                                    title: 'Download Blocked', 
+                                    description: 'Please check your browser settings and allow downloads.' 
+                                });
+                            });
+                        }
+                        
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    }
+                    
+                } catch (downloadError) {
+                    console.error('Download error:', downloadError);
+                    toast({ 
+                        variant: 'destructive', 
+                        title: 'Download Failed', 
+                        description: 'Please check your browser settings and try again.' 
+                    });
+                    reject(downloadError);
+                }
             }, mimeType, quality);
         };
         img.onerror = () => {
@@ -505,12 +587,29 @@ export function SnapScaleTool() {
   };
 
   const handleDownload = async (values: FormValues) => {
-    if (!originalImage) return;
+    if (!originalImage) {
+      toast({ variant: 'destructive', title: 'No Image', description: 'Please upload an image first.' });
+      return;
+    }
+    
+    console.log('Starting download process...', {
+      image: originalImage.name,
+      dimensions: `${values.width}x${values.height}`,
+      format: values.format,
+      quality: values.quality
+    });
+    
     setIsProcessing(true);
     try {
       await processAndDownloadImage(originalImage, values);
+      console.log('Download completed successfully');
     } catch (error) {
-      console.error('Download failed', error);
+      console.error('Download failed:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Download Failed', 
+        description: error instanceof Error ? error.message : 'Unknown error occurred' 
+      });
     } finally {
       setIsProcessing(false);
     }
