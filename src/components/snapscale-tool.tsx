@@ -161,30 +161,34 @@ export function SnapScaleTool() {
 
     const subscription = form.watch((value, { name }) => {
       if (isUpdatingRef.current) return;
-      
+
       const { width, height, isAspectRatioLocked, percentage, mode } = value;
+      const currentWidth = form.getValues('width');
+      const currentHeight = form.getValues('height');
       const ratio = originalImage.width / originalImage.height;
 
       isUpdatingRef.current = true;
 
       if (isAspectRatioLocked) {
-        if (mode === 'dimensions' && name === 'width' && width && width !== form.getValues('width')) {
-          form.setValue('height', Math.round(width / ratio), { shouldValidate: true });
-        } else if (mode === 'dimensions' && name === 'height' && height && height !== form.getValues('height')) {
-          form.setValue('width', Math.round(height * ratio), { shouldValidate: true });
+        if (mode === 'dimensions') {
+          if (name === 'width' && width && width !== currentWidth) {
+            form.setValue('height', Math.round(width / ratio), { shouldValidate: true });
+          } else if (name === 'height' && height && height !== currentHeight) {
+            form.setValue('width', Math.round(height * ratio), { shouldValidate: true });
+          }
         } else if (mode === 'percentage' && name === 'percentage' && percentage) {
           form.setValue('width', Math.round((originalImage.width * percentage) / 100), { shouldValidate: true });
           form.setValue('height', Math.round((originalImage.height * percentage) / 100), { shouldValidate: true });
         }
       }
-      
+
       if (mode === 'dimensions' && (name === 'width' || name === 'height')) {
-        const newPercentage = Math.round((width! / originalImage.width) * 100);
+        const newPercentage = width ? Math.round((width / originalImage.width) * 100) : 0;
         if (form.getValues('percentage') !== newPercentage) {
           form.setValue('percentage', newPercentage, { shouldValidate: true });
         }
       }
-      
+
       isUpdatingRef.current = false;
     });
 
@@ -197,8 +201,8 @@ export function SnapScaleTool() {
       if (!originalImage || !watchedValues.width || !watchedValues.height || !watchedValues.quality) return;
       setIsEstimating(true);
       const result = await getEstimatedFileSize({
-        width: watchedValues.width,
-        height: watchedValues.height,
+        width: Number(watchedValues.width),
+        height: Number(watchedValues.height),
         quality: watchedValues.quality,
       });
 
