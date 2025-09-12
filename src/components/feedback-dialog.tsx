@@ -35,9 +35,10 @@ export function FeedbackDialog() {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('message', feedback.trim());
-      formData.append('subject', 'SnapScale Feedback');
-      formData.append('timestamp', new Date().toISOString());
+      formData.append('message', `Feedback: ${feedback.trim()}\n\nTimestamp: ${new Date().toISOString()}`);
+      formData.append('_subject', 'SnapScale App Feedback');
+      formData.append('_captcha', 'false');
+      formData.append('_template', 'table');
       
       const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
         method: 'POST',
