@@ -16,25 +16,30 @@ export async function submitFeedback(feedback: string) {
       throw new Error('Feedback is too long (max 1000 characters)');
     }
     
-    // Log feedback with timestamp
-    const feedbackData = {
-      feedback: feedback.trim(),
-      timestamp: new Date().toISOString(),
-      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Server',
-    };
+    const formData = new FormData();
+    formData.append('message', feedback.trim());
+    formData.append('subject', 'SnapScale Feedback');
+    formData.append('timestamp', new Date().toISOString());
     
-    console.log('Feedback received:', feedbackData);
+    const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
     
-    // Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
-    // In production, you would send this to:
-    // - Database (Firebase, Supabase, etc.)
-    // - Email service (SendGrid, Resend, etc.)
-    // - Analytics service (Google Analytics, etc.)
-    // - Webhook endpoint
+    const result = await response.json();
     
-    return { success: true, message: 'Feedback submitted successfully' };
+    if (result.success === false) {
+      throw new Error(result.message || 'Failed to submit feedback');
+    }
+    
+    return { success: true, message: 'Feedback sent successfully' };
   } catch (error) {
     console.error('Error submitting feedback:', error);
     throw new Error(error instanceof Error ? error.message : 'Failed to submit feedback');
