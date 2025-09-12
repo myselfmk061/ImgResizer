@@ -451,7 +451,7 @@ export function SnapScaleTool() {
     return () => clearTimeout(debounce);
   }, [watchedValues.width, watchedValues.height, watchedValues.quality, originalImage]);
 
-  const processAndDownloadImage = async (image: OriginalImage, values: FormValues) => {
+  const processAndDownloadImage = async (image: OriginalImage, values: FormValues, customSize?: string) => {
     return new Promise<void>((resolve, reject) => {
       try {
         const canvas = document.createElement('canvas');
@@ -499,9 +499,41 @@ export function SnapScaleTool() {
             applyFilters(canvas, ctx, values);
 
             const mimeType = `image/${values.format}`;
-            const quality = values.format === 'jpeg' ? qualityToValue[values.quality] : undefined;
-
-            canvas.toBlob((blob) => {
+            let quality = values.format === 'jpeg' ? qualityToValue[values.quality] : undefined;
+            
+            // Function to compress to target size
+            const compressToTargetSize = (targetKB: number, currentQuality: number = 0.8): Promise<Blob> => {
+              return new Promise((resolveBlob, rejectBlob) => {
+                canvas.toBlob((blob) => {
+                  if (!blob) {
+                    rejectBlob(new Error('Failed to create blob'));
+                    return;
+                  }
+                  
+                  const actualSizeKB = blob.size / 1024;
+                  
+                  // If close enough to target (within 10%), use it
+                  if (Math.abs(actualSizeKB - targetKB) / targetKB < 0.1) {
+                    resolveBlob(blob);
+                    return;
+                  }
+                  
+                  // Adjust quality and try again
+                  if (actualSizeKB > targetKB && currentQuality > 0.1) {
+                    compressToTargetSize(targetKB, currentQuality - 0.1).then(resolveBlob).catch(rejectBlob);
+                  } else if (actualSizeKB < targetKB && currentQuality < 0.95) {
+                    compressToTargetSize(targetKB, currentQuality + 0.05).then(resolveBlob).catch(rejectBlob);
+                  } else {
+                    resolveBlob(blob); // Use current blob if can't optimize further
+                  }
+                }, mimeType, currentQuality);
+              });
+            };
+            
+            // Use custom compression if target size is set
+            if (customSize && values.format === 'jpeg') {
+              const targetSizeKB = parseFloat(customSize);
+              compressToTargetSize(targetSizeKB).then((blob) => {
                 if (!blob) { 
                     toast({ variant: 'destructive', title: 'Download Error', description: `Could not create image blob for ${image.name}.` });
                     reject(new Error(`Blob creation failed for ${image.name}`));
@@ -576,7 +608,82 @@ export function SnapScaleTool() {
                     });
                     reject(downloadError);
                 }
-            }, mimeType, quality);
+              }).catch(reject);
+            } else {
+              // Standard compression
+              canvas.toBlob((blob) => {
+                if (!blob) { 
+                    toast({ variant: 'destructive', title: 'Download Error', description: `Could not create image blob for ${image.name}.` });
+                    reject(new Error(`Blob creation failed for ${image.name}`));
+                    return;
+                }
+                
+                try {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
+                    a.href = url;
+                    a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                    a.style.display = 'none';
+                    
+                    document.body.appendChild(a);
+                    
+                    try {
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        toast({ 
+                            title: 'Download Started', 
+                            description: `${originalName}-${targetWidth}x${targetHeight}.${values.format} is downloading.` 
+                        });
+                        
+                        resolve();
+                    } catch (clickError) {
+                        console.warn('Direct download failed, trying fallback method:', clickError);
+                        
+                        try {
+                            const newWindow = window.open(url, '_blank');
+                            if (newWindow) {
+                                newWindow.document.title = `Download: ${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                                toast({ 
+                                    title: 'Download Ready', 
+                                    description: 'Image opened in new tab. Right-click and save to download.' 
+                                });
+                            } else {
+                                throw new Error('Popup blocked');
+                            }
+                        } catch (popupError) {
+                            navigator.clipboard.writeText(url).then(() => {
+                                toast({ 
+                                    title: 'Download URL Copied', 
+                                    description: 'Paste the URL in a new tab to download the image.' 
+                                });
+                            }).catch(() => {
+                                toast({ 
+                                    variant: 'destructive',
+                                    title: 'Download Blocked', 
+                                    description: 'Please check your browser settings and allow downloads.' 
+                                });
+                            });
+                        }
+                        
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        resolve();
+                    }
+                    
+                } catch (downloadError) {
+                    console.error('Download error:', downloadError);
+                    toast({ 
+                        variant: 'destructive', 
+                        title: 'Download Failed', 
+                        description: 'Please check your browser settings and try again.' 
+                    });
+                    reject(downloadError);
+                }
+              }, mimeType, quality);
+            }
         };
         img.onerror = () => {
             reject(new Error(`Failed to load image: ${image.name}`));
@@ -603,7 +710,7 @@ export function SnapScaleTool() {
     
     setIsProcessing(true);
     try {
-      await processAndDownloadImage(originalImage, values);
+      await processAndDownloadImage(originalImage, values, useCustomSize ? customEstimatedSize : undefined);
       console.log('Download completed successfully');
     } catch (error) {
       console.error('Download failed:', error);
@@ -626,7 +733,7 @@ export function SnapScaleTool() {
 
     for (const image of originalImages) {
       try {
-        await processAndDownloadImage(image, values);
+        await processAndDownloadImage(image, values, useCustomSize ? customEstimatedSize : undefined);
         downloadedCount++;
       } catch (error) {
         console.error(`Failed to process ${image.name}`, error);
@@ -1017,7 +1124,7 @@ export function SnapScaleTool() {
                                   </FormItem>
                                 </RadioGroup>
                               </FormControl>
-                              <FormDescription className="pt-4 space-y-3">
+                              <div className="pt-4 space-y-3 text-sm text-muted-foreground">
                                 <div className="flex items-center justify-center">
                                   Estimated file size: 
                                   {isEstimating ? <Loader2 className="ml-2 h-4 w-4 animate-spin"/> : <strong className="ml-1.5">{useCustomSize && customEstimatedSize ? `~${customEstimatedSize} KB` : estimatedSize !== null ? `~${estimatedSize.toFixed(1)} KB` : 'N/A'}</strong>}
@@ -1048,7 +1155,7 @@ export function SnapScaleTool() {
                                     </div>
                                   )}
                                 </div>
-                              </FormDescription>
+                              </div>
                             </FormItem>
                           )}
                         />
