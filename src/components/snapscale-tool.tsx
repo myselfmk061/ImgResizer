@@ -103,6 +103,8 @@ export function SnapScaleTool() {
   const [processedImages, setProcessedImages] = useState<ProcessedImage[]>([]);
   const [estimatedSize, setEstimatedSize] = useState<number | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
+  const [customEstimatedSize, setCustomEstimatedSize] = useState<string>('');
+  const [useCustomSize, setUseCustomSize] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
@@ -1015,9 +1017,37 @@ export function SnapScaleTool() {
                                   </FormItem>
                                 </RadioGroup>
                               </FormControl>
-                              <FormDescription className="flex items-center justify-center pt-4">
-                                Estimated file size: 
-                                {isEstimating ? <Loader2 className="ml-2 h-4 w-4 animate-spin"/> : <strong className="ml-1.5">{estimatedSize !== null ? `~${estimatedSize.toFixed(1)} KB` : 'N/A'}</strong>}
+                              <FormDescription className="pt-4 space-y-3">
+                                <div className="flex items-center justify-center">
+                                  Estimated file size: 
+                                  {isEstimating ? <Loader2 className="ml-2 h-4 w-4 animate-spin"/> : <strong className="ml-1.5">{useCustomSize && customEstimatedSize ? `~${customEstimatedSize} KB` : estimatedSize !== null ? `~${estimatedSize.toFixed(1)} KB` : 'N/A'}</strong>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant={useCustomSize ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => {
+                                      setUseCustomSize(!useCustomSize);
+                                      if (useCustomSize) setCustomEstimatedSize('');
+                                    }}
+                                  >
+                                    Custom Size
+                                  </Button>
+                                  {useCustomSize && (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        placeholder="KB"
+                                        value={customEstimatedSize}
+                                        onChange={(e) => setCustomEstimatedSize(e.target.value)}
+                                        className="w-20 h-8 text-sm"
+                                        min="1"
+                                      />
+                                      <span className="text-xs text-muted-foreground">KB</span>
+                                    </div>
+                                  )}
+                                </div>
                               </FormDescription>
                             </FormItem>
                           )}

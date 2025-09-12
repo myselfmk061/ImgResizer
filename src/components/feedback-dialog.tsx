@@ -35,17 +35,15 @@ export function FeedbackDialog() {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('message', `Feedback: ${feedback.trim()}\n\nTimestamp: ${new Date().toISOString()}`);
-      formData.append('_subject', 'SnapScale App Feedback');
-      formData.append('_captcha', 'false');
-      formData.append('_template', 'table');
+      formData.append('access_key', 'YOUR_ACCESS_KEY_HERE');
+      formData.append('subject', 'SnapScale App Feedback');
+      formData.append('message', feedback.trim());
+      formData.append('from_name', 'SnapScale User');
+      formData.append('timestamp', new Date().toISOString());
       
-      const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
+      const response = await fetch('https://api.web3forms.com/submit', {
         method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json'
-        }
+        body: formData
       });
       
       if (response.ok) {
