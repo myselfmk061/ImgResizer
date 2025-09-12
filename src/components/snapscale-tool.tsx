@@ -82,6 +82,7 @@ export function SnapScaleTool() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const isUpdatingRef = useRef(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -159,8 +160,12 @@ export function SnapScaleTool() {
     if (!originalImage) return;
 
     const subscription = form.watch((value, { name }) => {
+      if (isUpdatingRef.current) return;
+      
       const { width, height, isAspectRatioLocked, percentage, mode } = value;
       const ratio = originalImage.width / originalImage.height;
+
+      isUpdatingRef.current = true;
 
       if (isAspectRatioLocked) {
         if (mode === 'dimensions' && name === 'width' && width) {
@@ -175,8 +180,12 @@ export function SnapScaleTool() {
       
       if (mode === 'dimensions' && (name === 'width' || name === 'height')) {
         const newPercentage = Math.round((width! / originalImage.width) * 100);
-        form.setValue('percentage', newPercentage, { shouldValidate: true });
+        if (form.getValues('percentage') !== newPercentage) {
+          form.setValue('percentage', newPercentage, { shouldValidate: true });
+        }
       }
+      
+      isUpdatingRef.current = false;
     });
 
     return () => subscription.unsubscribe();
