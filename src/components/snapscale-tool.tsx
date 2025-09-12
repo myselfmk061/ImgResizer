@@ -179,8 +179,7 @@ export function SnapScaleTool() {
       const newImages: OriginalImage[] = [];
       let loadedCount = 0;
 
-      const onImageLoad = (img: OriginalImage) => {
-        newImages.push(img);
+      const onImageLoad = () => {
         loadedCount++;
         if (loadedCount === imageFiles.length) {
           setOriginalImages(prev => {
@@ -204,7 +203,7 @@ export function SnapScaleTool() {
           toast({ variant: 'destructive', title: 'Error', description: `Could not load ${fileName}` });
           loadedCount++;
           if (loadedCount === imageFiles.length) {
-            setOriginalImages(prev => [...prev, ...newImages]);
+            onImageLoad();
           }
       };
 
@@ -217,7 +216,7 @@ export function SnapScaleTool() {
           }
           const img = document.createElement('img');
           img.onload = () => {
-            onImageLoad({
+            newImages.push({
               id: Math.random().toString(36).substring(2, 9),
               src: img.src,
               name: file.name,
@@ -225,6 +224,7 @@ export function SnapScaleTool() {
               height: img.height,
               type: file.type,
             });
+            onImageLoad();
           };
           img.onerror = () => onImageError(file.name);
           img.src = e.target.result as string;
@@ -275,10 +275,21 @@ export function SnapScaleTool() {
         return;
     }
 
-    if (currentImageIndex >= removedIndex) {
-        const newIndex = Math.max(0, currentImageIndex - 1);
+    if (currentImageIndex >= removedIndex && currentImageIndex > 0) {
+        const newIndex = currentImageIndex - 1;
         setCurrentImageIndex(newIndex);
-        
+        if (updatedImages[newIndex]) {
+            const { width, height } = updatedImages[newIndex];
+            form.reset({
+                ...form.getValues(),
+                width,
+                height,
+                percentage: 100
+            });
+        }
+    } else if (updatedImages.length > 0) {
+        const newIndex = Math.min(currentImageIndex, updatedImages.length - 1);
+        setCurrentImageIndex(newIndex);
         if (updatedImages[newIndex]) {
             const { width, height } = updatedImages[newIndex];
             form.reset({
@@ -424,63 +435,84 @@ export function SnapScaleTool() {
     return () => clearTimeout(debounce);
   }, [watchedValues.width, watchedValues.height, watchedValues.quality, originalImage]);
 
+  const processAndDownloadImage = async (image: OriginalImage, values: FormValues) => {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Could not get canvas context');
+
+        const { mode, percentage } = values;
+        let targetWidth = values.width;
+        let targetHeight = values.height;
+
+        if (mode === 'percentage') {
+          targetWidth = Math.round((image.width * (percentage || 100)) / 100);
+          targetHeight = Math.round((image.height * (percentage || 100)) / 100);
+        }
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const img = document.createElement('img');
+        img.src = image.src;
+        img.onload = () => {
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            
+            if (values.rotation) {
+                ctx.rotate((values.rotation * Math.PI) / 180);
+            }
+            
+            const scaleX = values.flipHorizontal ? -1 : 1;
+            const scaleY = values.flipVertical ? -1 : 1;
+            ctx.scale(scaleX, scaleY);
+            
+            ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+            ctx.restore();
+            
+            applyFilters(canvas, ctx, values);
+
+            const mimeType = `image/${values.format}`;
+            const quality = values.format === 'jpeg' ? qualityToValue[values.quality] : undefined;
+
+            canvas.toBlob((blob) => {
+                if (!blob) { 
+                    toast({ variant: 'destructive', title: 'Download Error', description: `Could not create image blob for ${image.name}.` });
+                    reject(new Error(`Blob creation failed for ${image.name}`));
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
+                a.href = url;
+                a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                resolve();
+            }, mimeType, quality);
+        };
+        img.onerror = () => {
+            reject(new Error(`Failed to load image: ${image.name}`));
+        };
+      } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Processing Error', description: error.message });
+        reject(error);
+      }
+    });
+  };
+
   const handleDownload = async (values: FormValues) => {
     if (!originalImage) return;
     setIsProcessing(true);
-
     try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Could not get canvas context');
-
-      canvas.width = values.width;
-      canvas.height = values.height;
-
-      const img = document.createElement('img');
-      img.src = originalImage.src;
-      await new Promise(resolve => img.onload = resolve);
-      
-      // Apply transformations
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      
-      if (values.rotation) {
-        ctx.rotate((values.rotation * Math.PI) / 180);
-      }
-      
-      const scaleX = values.flipHorizontal ? -1 : 1;
-      const scaleY = values.flipVertical ? -1 : 1;
-      ctx.scale(scaleX, scaleY);
-      
-      ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
-      ctx.restore();
-      
-      // Apply filters
-      applyFilters(canvas, ctx, values);
-
-      const mimeType = `image/${values.format}`;
-      const quality = values.format === 'jpeg' ? qualityToValue[values.quality] : undefined;
-
-      canvas.toBlob((blob) => {
-        if (!blob) { 
-            toast({ variant: 'destructive', title: 'Download Error', description: 'Could not create image blob.' });
-            setIsProcessing(false);
-            return;
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const originalName = originalImage.name.substring(0, originalImage.name.lastIndexOf('.'));
-        a.href = url;
-        a.download = `${originalName}-${values.width}x${values.height}.${values.format}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        setIsProcessing(false);
-      }, mimeType, quality);
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Download Error', description: error.message });
-        setIsProcessing(false);
+      await processAndDownloadImage(originalImage, values);
+    } catch (error) {
+      console.error('Download failed', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -488,13 +520,20 @@ export function SnapScaleTool() {
     if (originalImages.length === 0) return;
     setIsProcessing(true);
     
+    const values = form.getValues();
+    let downloadedCount = 0;
+
     for (const image of originalImages) {
-      // Process each image with current settings
-      // Implementation similar to handleDownload but for batch processing
+      try {
+        await processAndDownloadImage(image, values);
+        downloadedCount++;
+      } catch (error) {
+        console.error(`Failed to process ${image.name}`, error);
+      }
     }
     
     setIsProcessing(false);
-    toast({ title: 'Batch Download Complete', description: `${originalImages.length} images processed.` });
+    toast({ title: 'Batch Download Complete', description: `${downloadedCount} of ${originalImages.length} images processed.` });
   };
 
   const uploadPlaceholder = PlaceHolderImages.find(p => p.id === 'upload-placeholder');
@@ -649,7 +688,7 @@ export function SnapScaleTool() {
                 <div className="flex gap-2 flex-wrap">
                   {originalImages.length > 1 && (
                     <Button onClick={downloadAll} disabled={isProcessing}>
-                      <Download className="h-4 w-4 mr-2" />
+                      {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
                       Download All
                     </Button>
                   )}
