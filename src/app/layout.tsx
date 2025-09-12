@@ -6,8 +6,8 @@ import { Toaster } from '@/components/ui/toaster';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'SnapScale - Smart Photo Resizer',
-  description: 'Quickly resize, adjust, and optimize your images with SnapScale. A robust utility for all your photo scaling needs.',
+  title: 'ImgResizerApp - Smart Photo Resizer',
+  description: 'Quickly resize, adjust, and optimize your images with ImgResizerApp. A robust utility for all your photo scaling needs.',
 };
 
 export default function RootLayout({

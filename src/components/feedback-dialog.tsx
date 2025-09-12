@@ -36,9 +36,9 @@ export function FeedbackDialog() {
     try {
       const formData = new FormData();
       formData.append('access_key', 'YOUR_ACCESS_KEY_HERE');
-      formData.append('subject', 'SnapScale App Feedback');
+      formData.append('subject', 'ImgResizerApp App Feedback');
       formData.append('message', feedback.trim());
-      formData.append('from_name', 'SnapScale User');
+      formData.append('from_name', 'ImgResizerApp User');
       formData.append('timestamp', new Date().toISOString());
       
       const response = await fetch('https://api.web3forms.com/submit', {
@@ -123,5 +123,3 @@ export function FeedbackDialog() {
     </Dialog>
   );
 }
-
-    
