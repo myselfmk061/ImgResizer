@@ -1,3 +1,11 @@
+
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "upload-placeholder",
+      "description": "A placeholder graphic showing a cloud with an upward arrow, symbolizing an upload action.",
+      "imageUrl": "https://picsum.photos/seed/snapscale1/600/400",
+      "imageHint": "upload graphic"
+    }
+  ]
 }
