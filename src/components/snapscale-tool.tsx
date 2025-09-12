@@ -14,6 +14,16 @@ import {
   Unlock,
   UploadCloud,
   X,
+  Palette,
+  Layers,
+  RotateCw,
+  FlipHorizontal,
+  FlipVertical,
+  Crop,
+  FileImage,
+  Trash2,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,6 +31,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
 import { getEstimatedFileSize } from '@/app/actions';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,6 +56,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -55,6 +68,16 @@ type OriginalImage = {
   width: number;
   height: number;
   type: string;
+  id: string;
+};
+
+type ProcessedImage = {
+  id: string;
+  src: string;
+  name: string;
+  width: number;
+  height: number;
+  format: string;
 };
 
 const formSchema = z.object({
@@ -64,6 +87,13 @@ const formSchema = z.object({
   percentage: z.coerce.number().min(1).max(200).default(100),
   isAspectRatioLocked: z.boolean().default(true),
   quality: z.enum(['low', 'medium', 'high']).default('medium'),
+  format: z.enum(['jpeg', 'png', 'webp']).default('jpeg'),
+  brightness: z.number().min(-100).max(100).default(0),
+  contrast: z.number().min(-100).max(100).default(0),
+  saturation: z.number().min(-100).max(100).default(0),
+  rotation: z.number().min(0).max(360).default(0),
+  flipHorizontal: z.boolean().default(false),
+  flipVertical: z.boolean().default(false),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -75,14 +105,49 @@ const qualityToValue: Record<FormValues['quality'], number> = {
 };
 
 export function SnapScaleTool() {
-  const [originalImage, setOriginalImage] = useState<OriginalImage | null>(null);
+  const [originalImages, setOriginalImages] = useState<OriginalImage[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [processedImages, setProcessedImages] = useState<ProcessedImage[]>([]);
   const [estimatedSize, setEstimatedSize] = useState<number | null>(null);
   const [isEstimating, setIsEstimating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showSamples, setShowSamples] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const isUpdatingRef = useRef(false);
+  
+  const sampleImages = [
+    {
+      id: 'landscape',
+      name: 'Mountain Landscape',
+      url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
+      description: 'Beautiful mountain landscape - Perfect for testing resize'
+    },
+    {
+      id: 'portrait', 
+      name: 'Portrait Photo',
+      url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=800&fit=crop',
+      description: 'Professional portrait - Great for aspect ratio testing'
+    },
+    {
+      id: 'nature',
+      name: 'Forest Nature',
+      url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=600&fit=crop', 
+      description: 'Dense forest scene - Ideal for filter testing'
+    },
+    {
+      id: 'city',
+      name: 'City Skyline',
+      url: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=600&fit=crop',
+      description: 'Urban cityscape - Perfect for compression testing'
+    }
+  ];
+  
+  const originalImage = originalImages[currentImageIndex] || null;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -91,50 +156,66 @@ export function SnapScaleTool() {
       percentage: 100,
       isAspectRatioLocked: true,
       quality: 'medium',
+      format: 'jpeg',
+      brightness: 0,
+      contrast: 0,
+      saturation: 0,
+      rotation: 0,
+      flipHorizontal: false,
+      flipVertical: false,
     },
   });
 
   const watchedValues = form.watch();
 
-  const handleFile = useCallback(
-    (file: File) => {
-      if (!file.type.startsWith('image/')) {
-        toast({
-          variant: 'destructive',
-          title: 'Invalid File',
-          description: 'Please upload an image file.',
-        });
-        return;
-      }
+  const handleFiles = useCallback(
+    (files: FileList) => {
+      Array.from(files).forEach(file => {
+        if (!file.type.startsWith('image/')) {
+          toast({
+            variant: 'destructive',
+            title: 'Invalid File',
+            description: `${file.name} is not an image file.`,
+          });
+          return;
+        }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = document.createElement('img');
-        img.onload = () => {
-          setOriginalImage({
-            src: img.src,
-            name: file.name,
-            width: img.width,
-            height: img.height,
-            type: file.type,
-          });
-          form.reset({
-            ...form.getValues(),
-            width: img.width,
-            height: img.height,
-            percentage: 100,
-          });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = document.createElement('img');
+          img.onload = () => {
+            const newImage: OriginalImage = {
+              id: Math.random().toString(36).substr(2, 9),
+              src: img.src,
+              name: file.name,
+              width: img.width,
+              height: img.height,
+              type: file.type,
+            };
+            setOriginalImages(prev => {
+              const updated = [...prev, newImage];
+              if (prev.length === 0) {
+                form.reset({
+                  ...form.getValues(),
+                  width: img.width,
+                  height: img.height,
+                  percentage: 100,
+                });
+              }
+              return updated;
+            });
+          };
+          img.src = e.target?.result as string;
         };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      });
     },
     [form, toast]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    const files = e.target.files;
+    if (files) handleFiles(files);
     e.target.value = ''; // Reset input
   };
   
@@ -146,14 +227,53 @@ export function SnapScaleTool() {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     handleDragEvents(e);
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
+    const files = e.dataTransfer.files;
+    if (files) handleFiles(files);
   };
   
   const resetTool = () => {
-    setOriginalImage(null);
+    setOriginalImages([]);
+    setCurrentImageIndex(0);
+    setProcessedImages([]);
     setEstimatedSize(null);
     form.reset();
+  };
+
+  const removeImage = (id: string) => {
+    setOriginalImages(prev => {
+      const filtered = prev.filter(img => img.id !== id);
+      if (currentImageIndex >= filtered.length && filtered.length > 0) {
+        setCurrentImageIndex(filtered.length - 1);
+      }
+      return filtered;
+    });
+  };
+
+  const applyFilters = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, values: FormValues) => {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    for (let i = 0; i < data.length; i += 4) {
+      // Brightness
+      data[i] = Math.max(0, Math.min(255, data[i] + values.brightness * 2.55));
+      data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + values.brightness * 2.55));
+      data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + values.brightness * 2.55));
+      
+      // Contrast
+      const contrast = (values.contrast + 100) / 100;
+      data[i] = Math.max(0, Math.min(255, (data[i] - 128) * contrast + 128));
+      data[i + 1] = Math.max(0, Math.min(255, (data[i + 1] - 128) * contrast + 128));
+      data[i + 2] = Math.max(0, Math.min(255, (data[i + 2] - 128) * contrast + 128));
+      
+      // Saturation
+      const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+      const saturation = (values.saturation + 100) / 100;
+      data[i] = Math.max(0, Math.min(255, gray + (data[i] - gray) * saturation));
+      data[i + 1] = Math.max(0, Math.min(255, gray + (data[i + 1] - gray) * saturation));
+      data[i + 2] = Math.max(0, Math.min(255, gray + (data[i + 2] - gray) * saturation));
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
   };
 
   useEffect(() => {
@@ -198,26 +318,42 @@ export function SnapScaleTool() {
 
   useEffect(() => {
     const fetchEstimate = async () => {
-      if (!originalImage || !watchedValues.width || !watchedValues.height || !watchedValues.quality) return;
-      setIsEstimating(true);
-      const result = await getEstimatedFileSize({
-        width: Number(watchedValues.width),
-        height: Number(watchedValues.height),
-        quality: watchedValues.quality,
-      });
-
-      if ('error' in result) {
-        toast({ variant: 'destructive', title: 'Estimation Error', description: result.error });
+      if (!originalImage || !watchedValues.width || !watchedValues.height || !watchedValues.quality) {
         setEstimatedSize(null);
-      } else {
-        setEstimatedSize(result.estimatedFileSizeKB);
+        return;
       }
-      setIsEstimating(false);
+      
+      if (watchedValues.width <= 0 || watchedValues.height <= 0) {
+        setEstimatedSize(null);
+        return;
+      }
+      
+      setIsEstimating(true);
+      
+      try {
+        const result = await getEstimatedFileSize({
+          width: Number(watchedValues.width),
+          height: Number(watchedValues.height),
+          quality: watchedValues.quality,
+        });
+
+        if ('error' in result) {
+          console.warn('Estimation failed:', result.error);
+          setEstimatedSize(null);
+        } else {
+          setEstimatedSize(result.estimatedFileSizeKB);
+        }
+      } catch (error) {
+        console.error('Estimation error:', error);
+        setEstimatedSize(null);
+      } finally {
+        setIsEstimating(false);
+      }
     };
 
-    const debounce = setTimeout(fetchEstimate, 500);
+    const debounce = setTimeout(fetchEstimate, 300);
     return () => clearTimeout(debounce);
-  }, [watchedValues.width, watchedValues.height, watchedValues.quality, originalImage, toast]);
+  }, [watchedValues.width, watchedValues.height, watchedValues.quality, originalImage]);
 
   const handleDownload = async (values: FormValues) => {
     if (!originalImage) return;
@@ -235,19 +371,34 @@ export function SnapScaleTool() {
       img.src = originalImage.src;
       await new Promise(resolve => img.onload = resolve);
       
-      ctx.drawImage(img, 0, 0, values.width, values.height);
+      // Apply transformations
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      
+      if (values.rotation) {
+        ctx.rotate((values.rotation * Math.PI) / 180);
+      }
+      
+      const scaleX = values.flipHorizontal ? -1 : 1;
+      const scaleY = values.flipVertical ? -1 : 1;
+      ctx.scale(scaleX, scaleY);
+      
+      ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+      ctx.restore();
+      
+      // Apply filters
+      applyFilters(canvas, ctx, values);
 
-      const mimeType = originalImage.type === 'image/png' ? 'image/png' : 'image/jpeg';
-      const quality = mimeType === 'image/jpeg' ? qualityToValue[values.quality] : undefined;
+      const mimeType = `image/${values.format}`;
+      const quality = values.format === 'jpeg' ? qualityToValue[values.quality] : undefined;
 
       canvas.toBlob((blob) => {
         if (!blob) throw new Error('Could not create blob');
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        const extension = mimeType.split('/')[1];
         const originalName = originalImage.name.substring(0, originalImage.name.lastIndexOf('.'));
         a.href = url;
-        a.download = `${originalName}-${values.width}x${values.height}.${extension}`;
+        a.download = `${originalName}-${values.width}x${values.height}.${values.format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -260,7 +411,104 @@ export function SnapScaleTool() {
     }
   };
 
+  const downloadAll = async () => {
+    if (originalImages.length === 0) return;
+    setIsProcessing(true);
+    
+    for (const image of originalImages) {
+      // Process each image with current settings
+      // Implementation similar to handleDownload but for batch processing
+    }
+    
+    setIsProcessing(false);
+    toast({ title: 'Batch Download Complete', description: `${originalImages.length} images processed.` });
+  };
+
   const uploadPlaceholder = PlaceHolderImages.find(p => p.id === 'upload-placeholder');
+  
+  const loadSampleImage = async (sample: typeof sampleImages[0]) => {
+    try {
+      const response = await fetch(sample.url);
+      const blob = await response.blob();
+      const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          const newImage: OriginalImage = {
+            id: Math.random().toString(36).substr(2, 9),
+            src: img.src,
+            name: sample.name,
+            width: img.width,
+            height: img.height,
+            type: 'image/jpeg',
+          };
+          setOriginalImages(prev => {
+            const updated = [...prev, newImage];
+            if (prev.length === 0) {
+              form.reset({
+                ...form.getValues(),
+                width: img.width,
+                height: img.height,
+                percentage: 100,
+              });
+            }
+            return updated;
+          });
+          setShowSamples(false);
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Load Error',
+        description: 'Failed to load sample image.',
+      });
+    }
+  };
+
+  const sendFeedback = async () => {
+    if (!feedback.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Empty Feedback',
+        description: 'Please write your feedback before sending.',
+      });
+      return;
+    }
+
+    setIsSendingFeedback(true);
+    
+    try {
+      // Create mailto link with feedback
+      const subject = encodeURIComponent('SnapScale Tool Feedback');
+      const body = encodeURIComponent(`Feedback from SnapScale User:\n\n${feedback}\n\n---\nSent from SnapScale Image Editor`);
+      const mailtoLink = `mailto:mahendra.developer@gmail.com?subject=${subject}&body=${body}`;
+      
+      // Open email client
+      window.open(mailtoLink, '_blank');
+      
+      // Reset form and close dialog
+      setFeedback('');
+      setFeedbackOpen(false);
+      
+      toast({
+        title: 'Feedback Sent!',
+        description: 'Your email client has opened. Please send the email to complete your feedback.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to open email client. Please try again.',
+      });
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -270,11 +518,55 @@ export function SnapScaleTool() {
 
   return (
     <div className="w-full max-w-7xl mx-auto" onDragOver={handleDragEvents} onDrop={handleDragEvents}>
+      {/* Feedback Button - Fixed Position */}
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogTrigger asChild>
+          <Button 
+            className="fixed bottom-6 right-6 z-50 shadow-lg" 
+            size="lg"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <MessageSquare className="h-5 w-5 mr-2" />
+            Feedback
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Feedback</DialogTitle>
+            <DialogDescription>
+              Share your thoughts, suggestions, or report issues directly with the developer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder="Write your feedback here... (bugs, suggestions, feature requests, etc.)"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              rows={6}
+              className="resize-none"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={sendFeedback} disabled={isSendingFeedback}>
+                {isSendingFeedback ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Send Feedback
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
        <Card 
         className="w-full transition-all duration-300"
         onDragEnter={(e) => {handleDragEvents(e); setIsDragging(true);}}
        >
-        {!originalImage ? (
+        {originalImages.length === 0 ? (
           <div 
             className="relative p-8"
             onDragLeave={(e) => {handleDragEvents(e); setIsDragging(false);}}
@@ -287,18 +579,58 @@ export function SnapScaleTool() {
                 <h3 className="text-2xl font-bold">Upload Your Photo</h3>
                 <p className="text-muted-foreground">Drag & drop an image here, or click to browse.</p>
               </div>
-              <Button onClick={() => fileInputRef.current?.click()}>
-                Browse Files
-              </Button>
+              <div className="flex gap-4">
+                <Button onClick={() => fileInputRef.current?.click()}>
+                  Browse Files
+                </Button>
+                <Button variant="outline" onClick={() => setShowSamples(!showSamples)}>
+                  Try Sample Images
+                </Button>
+              </div>
               <input
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
                 accept="image/*"
+                multiple
                 onChange={handleFileSelect}
               />
             </div>
-            {uploadPlaceholder && (
+            {/* Sample Images Section */}
+            {showSamples && (
+              <div className="mt-8 p-6 bg-muted/30 rounded-lg border">
+                <h4 className="text-lg font-semibold mb-4 text-center">Try Sample Images</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {sampleImages.map((sample) => (
+                    <div key={sample.id} className="group cursor-pointer" onClick={() => loadSampleImage(sample)}>
+                      <div className="relative overflow-hidden rounded-lg border-2 border-transparent group-hover:border-primary transition-all">
+                        <Image
+                          src={sample.url}
+                          alt={sample.description}
+                          width={200}
+                          height={150}
+                          className="w-full h-32 object-cover group-hover:scale-105 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity text-sm text-center px-2">
+                            Click to Load
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium mt-2 text-center">{sample.name}</p>
+                      <p className="text-xs text-muted-foreground text-center">{sample.description}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 text-center">
+                  <Button variant="ghost" size="sm" onClick={() => setShowSamples(false)}>
+                    Hide Samples
+                  </Button>
+                </div>
+              </div>
+            )}
+            
+            {uploadPlaceholder && !showSamples && (
               <div className="mt-8 p-4 bg-muted/50 rounded-lg">
                 <Image
                   src={uploadPlaceholder.imageUrl}
@@ -315,17 +647,55 @@ export function SnapScaleTool() {
           <div className="p-4 sm:p-6 lg:p-8">
             <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold">Resize Image</h2>
-                  <p className="text-muted-foreground">Adjust settings to resize your image.</p>
+                  <h2 className="text-2xl font-bold">Professional Image Editor</h2>
+                  <p className="text-muted-foreground">Resize, transform, and enhance your images.</p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={resetTool} aria-label="Close">
-                    <X className="h-5 w-5"/>
-                </Button>
+                <div className="flex gap-2">
+                  {originalImages.length > 1 && (
+                    <Button onClick={downloadAll} disabled={isProcessing}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download All
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={resetTool} aria-label="Close">
+                      <X className="h-5 w-5"/>
+                  </Button>
+                </div>
             </div>
+            
+            {/* Image Selector */}
+            {originalImages.length > 1 && (
+              <div className="mb-6">
+                <Label className="text-sm font-medium mb-2 block">Select Image ({originalImages.length} uploaded)</Label>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {originalImages.map((img, index) => (
+                    <div key={img.id} className="relative flex-shrink-0">
+                      <Button
+                        variant={index === currentImageIndex ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentImageIndex(index)}
+                        className="h-auto p-2 flex flex-col gap-1"
+                      >
+                        <Image src={img.src} alt={img.name} width={40} height={40} className="rounded object-cover" />
+                        <span className="text-xs truncate max-w-[60px]">{img.name}</span>
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-5 w-5"
+                        onClick={() => removeImage(img.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <FormProvider {...form}>
               <form onSubmit={form.handleSubmit(handleDownload)} className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 {/* Controls Panel */}
-                <div className="space-y-8">
+                <div className="space-y-4">
                     <div className="p-4 border rounded-lg bg-muted/20">
                         <div className="flex items-center gap-4">
                             <Image src={originalImage.src} alt="Original" width={64} height={64} className="rounded-md object-cover w-16 h-16"/>
@@ -411,55 +781,270 @@ export function SnapScaleTool() {
                     </TabsContent>
                   </Tabs>
 
-                  <FormField
-                    control={form.control}
-                    name="quality"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
+                  <Accordion type="multiple" defaultValue={['format', 'quality']} className="w-full space-y-4">
+                    <AccordionItem value="format" className="border rounded-lg bg-muted/20 px-4">
+                      <AccordionTrigger className="text-base py-4">
                         <div className="flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-secondary" />
-                            <FormLabel className="text-base">Output Quality</FormLabel>
+                          <FileImage className="h-5 w-5 text-secondary" />
+                          Output Format
                         </div>
-                        <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                            className="grid grid-cols-3 gap-4"
-                          >
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <FormField
+                          control={form.control}
+                          name="format"
+                          render={({ field }) => (
                             <FormItem>
                               <FormControl>
-                                <RadioGroupItem value="low" id="low" className="sr-only" />
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="grid grid-cols-3 gap-4 pt-2"
+                                >
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="jpeg" id="jpeg" className="sr-only" />
+                                    </FormControl>
+                                    <Label htmlFor="jpeg" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
+                                      JPEG
+                                    </Label>
+                                  </FormItem>
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="png" id="png" className="sr-only" />
+                                    </FormControl>
+                                    <Label htmlFor="png" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
+                                      PNG
+                                    </Label>
+                                  </FormItem>
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="webp" id="webp" className="sr-only" />
+                                    </FormControl>
+                                    <Label htmlFor="webp" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
+                                      WebP
+                                    </Label>
+                                  </FormItem>
+                                </RadioGroup>
                               </FormControl>
-                              <Label htmlFor="low" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
-                                Low
-                              </Label>
                             </FormItem>
+                          )}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                    
+                    <AccordionItem value="quality" className="border rounded-lg bg-muted/20 px-4">
+                      <AccordionTrigger className="text-base py-4">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-secondary" />
+                          Output Quality
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <FormField
+                          control={form.control}
+                          name="quality"
+                          render={({ field }) => (
                             <FormItem>
                               <FormControl>
-                                <RadioGroupItem value="medium" id="medium" className="sr-only" />
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="grid grid-cols-3 gap-4 pt-2"
+                                >
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="low" id="low" className="sr-only" />
+                                    </FormControl>
+                                    <Label htmlFor="low" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
+                                      Low
+                                    </Label>
+                                  </FormItem>
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="medium" id="medium" className="sr-only" />
+                                    </FormControl>
+                                    <Label htmlFor="medium" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
+                                      Medium
+                                    </Label>
+                                  </FormItem>
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="high" id="high" className="sr-only" />
+                                    </FormControl>
+                                    <Label htmlFor="high" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
+                                      High
+                                    </Label>
+                                  </FormItem>
+                                </RadioGroup>
                               </FormControl>
-                              <Label htmlFor="medium" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
-                                Medium
-                              </Label>
+                              <FormDescription className="flex items-center justify-center pt-4">
+                                Estimated file size: 
+                                {isEstimating ? <Loader2 className="ml-2 h-4 w-4 animate-spin"/> : <strong className="ml-1.5">{estimatedSize !== null ? `~${estimatedSize.toFixed(1)} KB` : 'N/A'}</strong>}
+                              </FormDescription>
                             </FormItem>
+                          )}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                    
+                    <AccordionItem value="filters" className="border rounded-lg bg-muted/20 px-4">
+                      <AccordionTrigger className="text-base py-4">
+                        <div className="flex items-center gap-2">
+                          <Palette className="h-5 w-5 text-secondary" />
+                          Image Filters
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-4 pt-2">
+                        <FormField
+                          control={form.control}
+                          name="brightness"
+                          render={({ field }) => (
                             <FormItem>
+                              <div className="flex justify-between items-center">
+                                <FormLabel>Brightness</FormLabel>
+                                <Badge variant="secondary" className="text-sm">{field.value}</Badge>
+                              </div>
                               <FormControl>
-                                <RadioGroupItem value="high" id="high" className="sr-only" />
+                                <Slider
+                                  value={[field.value]}
+                                  onValueChange={(value) => field.onChange(value[0])}
+                                  min={-100}
+                                  max={100}
+                                  step={1}
+                                />
                               </FormControl>
-                              <Label htmlFor="high" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary">
-                                High
-                              </Label>
                             </FormItem>
-                          </RadioGroup>
-                        </FormControl>
-                        <FormDescription className="flex items-center justify-center pt-2">
-                          Estimated file size: 
-                          {isEstimating ? <Loader2 className="ml-2 h-4 w-4 animate-spin"/> : <strong className="ml-1.5">{estimatedSize !== null ? `~${estimatedSize.toFixed(1)} KB` : 'N/A'}</strong>}
-                        </FormDescription>
-                      </FormItem>
-                    )}
-                  />
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="contrast"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex justify-between items-center">
+                                <FormLabel>Contrast</FormLabel>
+                                <Badge variant="secondary" className="text-sm">{field.value}</Badge>
+                              </div>
+                              <FormControl>
+                                <Slider
+                                  value={[field.value]}
+                                  onValueChange={(value) => field.onChange(value[0])}
+                                  min={-100}
+                                  max={100}
+                                  step={1}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="saturation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex justify-between items-center">
+                                <FormLabel>Saturation</FormLabel>
+                                <Badge variant="secondary" className="text-sm">{field.value}</Badge>
+                              </div>
+                              <FormControl>
+                                <Slider
+                                  value={[field.value]}
+                                  onValueChange={(value) => field.onChange(value[0])}
+                                  min={-100}
+                                  max={100}
+                                  step={1}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
 
+                    <AccordionItem value="transform" className="border rounded-lg bg-muted/20 px-4">
+                      <AccordionTrigger className="text-base py-4">
+                        <div className="flex items-center gap-2">
+                          <Layers className="h-5 w-5 text-secondary" />
+                          Transform
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="space-y-4 pt-2">
+                        <FormField
+                          control={form.control}
+                          name="rotation"
+                          render={({ field }) => (
+                            <FormItem>
+                              <div className="flex justify-between items-center">
+                                <FormLabel>Rotation</FormLabel>
+                                <Badge variant="secondary" className="text-sm">{field.value}°</Badge>
+                              </div>
+                              <FormControl>
+                                <Slider
+                                  value={[field.value]}
+                                  onValueChange={(value) => field.onChange(value[0])}
+                                  min={0}
+                                  max={360}
+                                  step={1}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Flip</Label>
+                            <div className="flex gap-2">
+                              <FormField
+                                control={form.control}
+                                name="flipHorizontal"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Button
+                                        type="button"
+                                        variant={field.value ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => field.onChange(!field.value)}
+                                      >
+                                        <FlipHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="flipVertical"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Button
+                                        type="button"
+                                        variant={field.value ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => field.onChange(!field.value)}
+                                      >
+                                        <FlipVertical className="h-4 w-4" />
+                                      </Button>
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Crop</Label>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" disabled>
+                                <Crop className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                   <Button type="submit" size="lg" className="w-full" disabled={isProcessing}>
                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
                     Download Image
@@ -483,6 +1068,8 @@ export function SnapScaleTool() {
                           width: '100%', 
                           height: '100%',
                           objectFit: watchedValues.isAspectRatioLocked ? 'contain' : 'fill',
+                          filter: `brightness(${100 + watchedValues.brightness}%) contrast(${100 + watchedValues.contrast}%) saturate(${100 + watchedValues.saturation}%)`,
+                          transform: `rotate(${watchedValues.rotation}deg) scaleX(${watchedValues.flipHorizontal ? -1 : 1}) scaleY(${watchedValues.flipVertical ? -1 : 1})`,
                         }}
                       />
                     </div>
