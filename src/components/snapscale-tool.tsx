@@ -19,7 +19,6 @@ import {
   RotateCw,
   FlipHorizontal,
   FlipVertical,
-  Crop,
   FileImage,
   Trash2,
   MessageSquare,
@@ -170,7 +169,8 @@ export function SnapScaleTool() {
 
   const handleFiles = useCallback(
     (files: FileList) => {
-      Array.from(files).forEach(file => {
+      const newImages: OriginalImage[] = [];
+      Array.from(files).forEach((file, i) => {
         if (!file.type.startsWith('image/')) {
           toast({
             variant: 'destructive',
@@ -192,18 +192,22 @@ export function SnapScaleTool() {
               height: img.height,
               type: file.type,
             };
-            setOriginalImages(prev => {
-              const updated = [...prev, newImage];
-              if (prev.length === 0) {
-                form.reset({
-                  ...form.getValues(),
-                  width: img.width,
-                  height: img.height,
-                  percentage: 100,
-                });
-              }
-              return updated;
-            });
+            newImages.push(newImage);
+
+            if (i === files.length - 1) {
+              setOriginalImages(prev => {
+                const updated = [...prev, ...newImages];
+                if (prev.length === 0) {
+                  setCurrentImageIndex(0);
+                  form.reset({
+                    ...form.getValues(),
+                    width: newImages[0].width,
+                    height: newImages[0].height,
+                  });
+                }
+                return updated;
+              });
+            }
           };
           img.src = e.target?.result as string;
         };
@@ -241,10 +245,15 @@ export function SnapScaleTool() {
 
   const removeImage = (id: string) => {
     setOriginalImages(prev => {
+      const removedIndex = prev.findIndex(img => img.id === id);
       const filtered = prev.filter(img => img.id !== id);
-      if (currentImageIndex >= filtered.length && filtered.length > 0) {
-        setCurrentImageIndex(filtered.length - 1);
+      
+      if (filtered.length === 0) {
+        resetTool();
+      } else if (currentImageIndex >= removedIndex && currentImageIndex > 0) {
+        setCurrentImageIndex(currentImageIndex - 1);
       }
+      
       return filtered;
     });
   };
@@ -278,40 +287,77 @@ export function SnapScaleTool() {
 
   useEffect(() => {
     if (!originalImage) return;
-
+  
+    const { width, height, mode, percentage, isAspectRatioLocked } = form.getValues();
+  
+    if (mode === 'dimensions') {
+      const newPercentage = width ? Math.round((width / originalImage.width) * 100) : 0;
+      if (form.getValues('percentage') !== newPercentage) {
+        form.setValue('percentage', newPercentage, { shouldValidate: true });
+      }
+    } else {
+      const newWidth = Math.round((originalImage.width * percentage) / 100);
+      const newHeight = Math.round((originalImage.height * percentage) / 100);
+      if (form.getValues('width') !== newWidth) {
+        form.setValue('width', newWidth, { shouldValidate: true });
+      }
+      if (form.getValues('height') !== newHeight) {
+        form.setValue('height', newHeight, { shouldValidate: true });
+      }
+    }
+  
     const subscription = form.watch((value, { name }) => {
       if (isUpdatingRef.current) return;
-
+  
       const { width, height, isAspectRatioLocked, percentage, mode } = value;
-      const currentWidth = form.getValues('width');
-      const currentHeight = form.getValues('height');
       const ratio = originalImage.width / originalImage.height;
-
+  
       isUpdatingRef.current = true;
-
+  
       if (isAspectRatioLocked) {
         if (mode === 'dimensions') {
-          if (name === 'width' && width && width !== currentWidth) {
-            form.setValue('height', Math.round(width / ratio), { shouldValidate: true });
-          } else if (name === 'height' && height && height !== currentHeight) {
-            form.setValue('width', Math.round(height * ratio), { shouldValidate: true });
+          if (name === 'width' && width) {
+            const newHeight = Math.round(width / ratio);
+            if (form.getValues('height') !== newHeight) {
+              form.setValue('height', newHeight, { shouldValidate: true });
+            }
+          } else if (name === 'height' && height) {
+            const newWidth = Math.round(height * ratio);
+            if (form.getValues('width') !== newWidth) {
+              form.setValue('width', newWidth, { shouldValidate: true });
+            }
           }
         } else if (mode === 'percentage' && name === 'percentage' && percentage) {
-          form.setValue('width', Math.round((originalImage.width * percentage) / 100), { shouldValidate: true });
-          form.setValue('height', Math.round((originalImage.height * percentage) / 100), { shouldValidate: true });
+          const newWidth = Math.round((originalImage.width * percentage) / 100);
+          const newHeight = Math.round((originalImage.height * percentage) / 100);
+          if (form.getValues('width') !== newWidth) {
+            form.setValue('width', newWidth, { shouldValidate: true });
+          }
+          if (form.getValues('height') !== newHeight) {
+            form.setValue('height', newHeight, { shouldValidate: true });
+          }
         }
       }
-
+  
       if (mode === 'dimensions' && (name === 'width' || name === 'height')) {
         const newPercentage = width ? Math.round((width / originalImage.width) * 100) : 0;
         if (form.getValues('percentage') !== newPercentage) {
           form.setValue('percentage', newPercentage, { shouldValidate: true });
         }
+      } else if (mode === 'percentage' && name === 'percentage' && percentage) {
+        const newWidth = Math.round((originalImage.width * percentage) / 100);
+        if (form.getValues('width') !== newWidth) {
+          form.setValue('width', newWidth, { shouldValidate: true });
+        }
+        const newHeight = Math.round((originalImage.height * percentage) / 100);
+        if (form.getValues('height') !== newHeight) {
+          form.setValue('height', newHeight, { shouldValidate: true });
+        }
       }
-
+  
       isUpdatingRef.current = false;
     });
-
+  
     return () => subscription.unsubscribe();
   }, [originalImage, form]);
 
@@ -431,36 +477,8 @@ export function SnapScaleTool() {
       const response = await fetch(sample.url);
       const blob = await response.blob();
       const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = document.createElement('img');
-        img.onload = () => {
-          const newImage: OriginalImage = {
-            id: Math.random().toString(36).substr(2, 9),
-            src: img.src,
-            name: sample.name,
-            width: img.width,
-            height: img.height,
-            type: 'image/jpeg',
-          };
-          setOriginalImages(prev => {
-            const updated = [...prev, newImage];
-            if (prev.length === 0) {
-              form.reset({
-                ...form.getValues(),
-                width: img.width,
-                height: img.height,
-                percentage: 100,
-              });
-            }
-            return updated;
-          });
-          setShowSamples(false);
-        };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+      handleFiles(file as any);
+      setShowSamples(false);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -486,7 +504,7 @@ export function SnapScaleTool() {
       // Create mailto link with feedback
       const subject = encodeURIComponent('SnapScale Tool Feedback');
       const body = encodeURIComponent(`Feedback from SnapScale User:\n\n${feedback}\n\n---\nSent from SnapScale Image Editor`);
-      const mailtoLink = `mailto:mahendra.developer@gmail.com?subject=${subject}&body=${body}`;
+      const mailtoLink = `mailto:myselfmkapps@gmail.com?subject=${subject}&body=${body}`;
       
       // Open email client
       window.open(mailtoLink, '_blank');
@@ -518,50 +536,6 @@ export function SnapScaleTool() {
 
   return (
     <div className="w-full max-w-7xl mx-auto" onDragOver={handleDragEvents} onDrop={handleDragEvents}>
-      {/* Feedback Button - Fixed Position */}
-      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-        <DialogTrigger asChild>
-          <Button 
-            className="fixed bottom-6 right-6 z-50 shadow-lg" 
-            size="lg"
-            onClick={() => setFeedbackOpen(true)}
-          >
-            <MessageSquare className="h-5 w-5 mr-2" />
-            Feedback
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send Feedback</DialogTitle>
-            <DialogDescription>
-              Share your thoughts, suggestions, or report issues directly with the developer.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              placeholder="Write your feedback here... (bugs, suggestions, feature requests, etc.)"
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              rows={6}
-              className="resize-none"
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={sendFeedback} disabled={isSendingFeedback}>
-                {isSendingFeedback ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Send Feedback
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      
        <Card 
         className="w-full transition-all duration-300"
         onDragEnter={(e) => {handleDragEvents(e); setIsDragging(true);}}
@@ -651,6 +625,51 @@ export function SnapScaleTool() {
                   <p className="text-muted-foreground">Resize, transform, and enhance your images.</p>
                 </div>
                 <div className="flex gap-2">
+                  {/* Feedback Button */}
+                  <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        className="relative" 
+                        variant="outline"
+                        onClick={() => setFeedbackOpen(true)}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Feedback
+                        <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse"></span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Send Feedback</DialogTitle>
+                        <DialogDescription>
+                          Share your thoughts, suggestions, or report issues directly with the developer.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <Textarea
+                          placeholder="Write your feedback here... (bugs, suggestions, feature requests, etc.)"
+                          value={feedback}
+                          onChange={(e) => setFeedback(e.target.value)}
+                          rows={6}
+                          className="resize-none"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <Button variant="outline" onClick={() => setFeedbackOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={sendFeedback} disabled={isSendingFeedback}>
+                            {isSendingFeedback ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4 mr-2" />
+                            )}
+                            Send Feedback
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  
                   {originalImages.length > 1 && (
                     <Button onClick={downloadAll} disabled={isProcessing}>
                       <Download className="h-4 w-4 mr-2" />
@@ -1037,7 +1056,7 @@ export function SnapScaleTool() {
                             <Label className="text-sm font-medium">Crop</Label>
                             <div className="flex gap-2">
                               <Button type="button" variant="outline" size="sm" disabled>
-                                <Crop className="h-4 w-4" />
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15" /><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15" /></svg>
                               </Button>
                             </div>
                           </div>
@@ -1083,6 +1102,10 @@ export function SnapScaleTool() {
           </div>
         )}
       </Card>
+      
+
     </div>
   );
 }
+
+    
