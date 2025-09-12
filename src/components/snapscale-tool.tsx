@@ -4,7 +4,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ArrowLeftRight,
-  ArrowUpDown,
   Download,
   Image as ImageIcon,
   Loader2,
@@ -16,13 +15,10 @@ import {
   X,
   Palette,
   Layers,
-  RotateCw,
   FlipHorizontal,
   FlipVertical,
   FileImage,
   Trash2,
-  MessageSquare,
-  Send,
 } from 'lucide-react';
 import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -53,10 +49,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -186,11 +179,13 @@ export function SnapScaleTool() {
       const newImages: OriginalImage[] = [];
       let loadedCount = 0;
 
-      const onImageLoad = () => {
+      const onImageLoad = (img: OriginalImage) => {
+        newImages.push(img);
         loadedCount++;
         if (loadedCount === imageFiles.length) {
           setOriginalImages(prev => {
             const updatedImages = [...prev, ...newImages];
+            // If this is the first batch of images, set the first one as active
             if (prev.length === 0 && updatedImages.length > 0) {
               setCurrentImageIndex(0);
               const firstImage = updatedImages[0];
@@ -204,18 +199,25 @@ export function SnapScaleTool() {
           });
         }
       };
+      
+      const onImageError = (fileName: string) => {
+          toast({ variant: 'destructive', title: 'Error', description: `Could not load ${fileName}` });
+          loadedCount++;
+          if (loadedCount === imageFiles.length) {
+            setOriginalImages(prev => [...prev, ...newImages]);
+          }
+      };
 
       imageFiles.forEach(file => {
         const reader = new FileReader();
         reader.onload = e => {
           if (!e.target?.result) {
-            toast({ variant: 'destructive', title: 'Error', description: `Could not read ${file.name}` });
-            onImageLoad(); // Count this as "loaded" to not block other images
+            onImageError(file.name);
             return;
           }
           const img = document.createElement('img');
           img.onload = () => {
-            newImages.push({
+            onImageLoad({
               id: Math.random().toString(36).substring(2, 9),
               src: img.src,
               name: file.name,
@@ -223,18 +225,11 @@ export function SnapScaleTool() {
               height: img.height,
               type: file.type,
             });
-            onImageLoad();
           };
-          img.onerror = () => {
-            toast({ variant: 'destructive', title: 'Error', description: `Could not load ${file.name}` });
-            onImageLoad(); // Count this as "loaded"
-          };
+          img.onerror = () => onImageError(file.name);
           img.src = e.target.result as string;
         };
-        reader.onerror = () => {
-          toast({ variant: 'destructive', title: 'Error', description: `Failed to read ${file.name}` });
-          onImageLoad(); // Count this as "loaded"
-        };
+        reader.onerror = () => onImageError(file.name);
         reader.readAsDataURL(file);
       });
     },
@@ -387,7 +382,7 @@ export function SnapScaleTool() {
         height,
         percentage: 100,
     });
-  }, [currentImageIndex, originalImages, form]);
+  }, [currentImageIndex, originalImages]);
 
 
   useEffect(() => {
@@ -467,7 +462,11 @@ export function SnapScaleTool() {
       const quality = values.format === 'jpeg' ? qualityToValue[values.quality] : undefined;
 
       canvas.toBlob((blob) => {
-        if (!blob) throw new Error('Could not create blob');
+        if (!blob) { 
+            toast({ variant: 'destructive', title: 'Download Error', description: 'Could not create image blob.' });
+            setIsProcessing(false);
+            return;
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         const originalName = originalImage.name.substring(0, originalImage.name.lastIndexOf('.'));
@@ -505,9 +504,42 @@ export function SnapScaleTool() {
       const response = await fetch(sample.url);
       const blob = await response.blob();
       const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
-      const fileList = { 0: file, length: 1, item: (index: number) => (index === 0 ? file : null) } as FileList;
-      handleFiles(fileList);
-      setShowSamples(false);
+      
+      const newImage: OriginalImage = {
+        id: Math.random().toString(36).substring(2, 9),
+        src: URL.createObjectURL(file),
+        name: file.name,
+        width: 0,
+        height: 0,
+        type: file.type,
+      };
+
+      const img = document.createElement('img');
+      img.onload = () => {
+        newImage.width = img.width;
+        newImage.height = img.height;
+        setOriginalImages(prev => {
+          const updatedImages = [...prev, newImage];
+          setCurrentImageIndex(updatedImages.length - 1);
+          form.reset({
+            ...form.getValues(),
+            width: newImage.width,
+            height: newImage.height,
+            percentage: 100,
+          });
+          return updatedImages;
+        });
+        setShowSamples(false);
+      };
+      img.onerror = () => {
+        toast({
+          variant: 'destructive',
+          title: 'Load Error',
+          description: 'Failed to load sample image dimensions.',
+        });
+      };
+      img.src = newImage.src;
+      
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -660,15 +692,18 @@ export function SnapScaleTool() {
               <form onSubmit={form.handleSubmit(handleDownload)} className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 items-start">
                 {/* Controls Panel */}
                 <div className="space-y-4">
-                    <div className="p-4 border rounded-lg bg-muted/20">
-                        <div className="flex items-center gap-4">
-                            <Image src={originalImage.src} alt="Original" width={64} height={64} className="rounded-md object-cover w-16 h-16"/>
-                            <div>
-                                <p className="font-semibold break-all">{originalImage.name}</p>
-                                <p className="text-sm text-muted-foreground">{originalImage.width} x {originalImage.height} px</p>
+                    {originalImage && (
+                        <div className="p-4 border rounded-lg bg-muted/20">
+                            <div className="flex items-center gap-4">
+                                <Image src={originalImage.src} alt="Original" width={64} height={64} className="rounded-md object-cover w-16 h-16"/>
+                                <div>
+                                    <p className="font-semibold break-all">{originalImage.name}</p>
+                                    <p className="text-sm text-muted-foreground">{originalImage.width} x {originalImage.height} px</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
+
 
                   <Tabs value={watchedValues.mode} onValueChange={(value) => form.setValue('mode', value as 'dimensions' | 'percentage')} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
@@ -1023,7 +1058,9 @@ export function SnapScaleTool() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="aspect-video w-full bg-muted rounded-lg flex items-center justify-center overflow-hidden border">
+                    {originalImage && (
                       <Image
+                        key={originalImage.id}
                         src={originalImage.src}
                         alt="Resized preview"
                         width={watchedValues.width || originalImage.width}
@@ -1036,6 +1073,7 @@ export function SnapScaleTool() {
                           transform: `rotate(${watchedValues.rotation}deg) scaleX(${watchedValues.flipHorizontal ? -1 : 1}) scaleY(${watchedValues.flipVertical ? -1 : 1})`,
                         }}
                       />
+                    )}
                     </div>
                     <div className="mt-4 text-center text-sm text-muted-foreground font-medium">
                         {watchedValues.width || 0} x {watchedValues.height || 0} px
