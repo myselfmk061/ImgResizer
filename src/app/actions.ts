@@ -6,6 +6,12 @@ import {
   EstimateFileSizeOutput,
 } from '@/ai/flows/estimate-file-size';
 
+export async function submitFeedback(feedback: string) {
+  console.log('Feedback received:', { feedback, timestamp: new Date().toISOString() });
+  // In production, send to your feedback service/database
+  return { success: true };
+}
+
 // Simple mathematical estimation as fallback
 function calculateFileSizeEstimate(width: number, height: number, quality: string): EstimateFileSizeOutput {
   const pixels = width * height;

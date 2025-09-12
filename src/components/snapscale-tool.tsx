@@ -169,7 +169,11 @@ export function SnapScaleTool() {
 
   const handleFiles = useCallback(
     (files: FileList) => {
+      if (!files || files.length === 0) return;
+      
       const newImages: OriginalImage[] = [];
+      let processedCount = 0;
+      
       Array.from(files).forEach((file, i) => {
         if (!file.type.startsWith('image/')) {
           toast({
@@ -177,11 +181,14 @@ export function SnapScaleTool() {
             title: 'Invalid File',
             description: `${file.name} is not an image file.`,
           });
+          processedCount++;
           return;
         }
 
         const reader = new FileReader();
         reader.onload = (e) => {
+          if (!e.target?.result) return;
+          
           const img = document.createElement('img');
           img.onload = () => {
             const newImage: OriginalImage = {
@@ -193,11 +200,12 @@ export function SnapScaleTool() {
               type: file.type,
             };
             newImages.push(newImage);
+            processedCount++;
 
-            if (i === files.length - 1) {
+            if (processedCount === files.length) {
               setOriginalImages(prev => {
                 const updated = [...prev, ...newImages];
-                if (prev.length === 0) {
+                if (prev.length === 0 && newImages.length > 0) {
                   setCurrentImageIndex(0);
                   form.reset({
                     ...form.getValues(),
@@ -209,7 +217,23 @@ export function SnapScaleTool() {
               });
             }
           };
-          img.src = e.target?.result as string;
+          img.onerror = () => {
+            processedCount++;
+            toast({
+              variant: 'destructive',
+              title: 'Load Error',
+              description: `Failed to load ${file.name}`,
+            });
+          };
+          img.src = e.target.result as string;
+        };
+        reader.onerror = () => {
+          processedCount++;
+          toast({
+            variant: 'destructive',
+            title: 'Read Error',
+            description: `Failed to read ${file.name}`,
+          });
         };
         reader.readAsDataURL(file);
       });
@@ -219,7 +243,9 @@ export function SnapScaleTool() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) handleFiles(files);
+    if (files && files.length > 0) {
+      handleFiles(files);
+    }
     e.target.value = ''; // Reset input
   };
   
@@ -250,8 +276,8 @@ export function SnapScaleTool() {
       
       if (filtered.length === 0) {
         resetTool();
-      } else if (currentImageIndex >= removedIndex && currentImageIndex > 0) {
-        setCurrentImageIndex(currentImageIndex - 1);
+      } else if (currentImageIndex >= removedIndex) {
+        setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
       }
       
       return filtered;
@@ -287,77 +313,54 @@ export function SnapScaleTool() {
 
   useEffect(() => {
     if (!originalImage) return;
-  
-    const { width, height, mode, percentage, isAspectRatioLocked } = form.getValues();
-  
-    if (mode === 'dimensions') {
-      const newPercentage = width ? Math.round((width / originalImage.width) * 100) : 0;
-      if (form.getValues('percentage') !== newPercentage) {
-        form.setValue('percentage', newPercentage, { shouldValidate: true });
-      }
-    } else {
-      const newWidth = Math.round((originalImage.width * percentage) / 100);
-      const newHeight = Math.round((originalImage.height * percentage) / 100);
-      if (form.getValues('width') !== newWidth) {
-        form.setValue('width', newWidth, { shouldValidate: true });
-      }
-      if (form.getValues('height') !== newHeight) {
-        form.setValue('height', newHeight, { shouldValidate: true });
-      }
-    }
-  
+
+    if (isUpdatingRef.current) return;
+
     const subscription = form.watch((value, { name }) => {
       if (isUpdatingRef.current) return;
-  
+
       const { width, height, isAspectRatioLocked, percentage, mode } = value;
       const ratio = originalImage.width / originalImage.height;
-  
+
       isUpdatingRef.current = true;
-  
+
       if (isAspectRatioLocked) {
         if (mode === 'dimensions') {
-          if (name === 'width' && width) {
+          if (name === 'width' && width && width !== form.getValues('width')) {
             const newHeight = Math.round(width / ratio);
             if (form.getValues('height') !== newHeight) {
               form.setValue('height', newHeight, { shouldValidate: true });
             }
-          } else if (name === 'height' && height) {
+          } else if (name === 'height' && height && height !== form.getValues('height')) {
             const newWidth = Math.round(height * ratio);
             if (form.getValues('width') !== newWidth) {
               form.setValue('width', newWidth, { shouldValidate: true });
             }
           }
-        } else if (mode === 'percentage' && name === 'percentage' && percentage) {
-          const newWidth = Math.round((originalImage.width * percentage) / 100);
-          const newHeight = Math.round((originalImage.height * percentage) / 100);
-          if (form.getValues('width') !== newWidth) {
-            form.setValue('width', newWidth, { shouldValidate: true });
-          }
-          if (form.getValues('height') !== newHeight) {
-            form.setValue('height', newHeight, { shouldValidate: true });
-          }
         }
       }
-  
+
       if (mode === 'dimensions' && (name === 'width' || name === 'height')) {
         const newPercentage = width ? Math.round((width / originalImage.width) * 100) : 0;
         if (form.getValues('percentage') !== newPercentage) {
           form.setValue('percentage', newPercentage, { shouldValidate: true });
         }
-      } else if (mode === 'percentage' && name === 'percentage' && percentage) {
-        const newWidth = Math.round((originalImage.width * percentage) / 100);
+      } else if (mode === 'percentage' && name === 'percentage') {
+        const newWidth = Math.round((originalImage.width * (percentage || 0)) / 100);
+        const newHeight = Math.round((originalImage.height * (percentage || 0)) / 100);
         if (form.getValues('width') !== newWidth) {
           form.setValue('width', newWidth, { shouldValidate: true });
         }
-        const newHeight = Math.round((originalImage.height * percentage) / 100);
         if (form.getValues('height') !== newHeight) {
           form.setValue('height', newHeight, { shouldValidate: true });
         }
       }
-  
-      isUpdatingRef.current = false;
+
+      setTimeout(() => {
+        isUpdatingRef.current = false;
+      }, 0);
     });
-  
+
     return () => subscription.unsubscribe();
   }, [originalImage, form]);
 
@@ -477,7 +480,8 @@ export function SnapScaleTool() {
       const response = await fetch(sample.url);
       const blob = await response.blob();
       const file = new File([blob], `${sample.name}.jpg`, { type: 'image/jpeg' });
-      handleFiles(file as any);
+      const fileList = { 0: file, length: 1, item: (index: number) => (index === 0 ? file : null) } as FileList;
+      handleFiles(fileList);
       setShowSamples(false);
     } catch (error) {
       toast({
@@ -501,27 +505,31 @@ export function SnapScaleTool() {
     setIsSendingFeedback(true);
     
     try {
-      // Create mailto link with feedback
-      const subject = encodeURIComponent('SnapScale Tool Feedback');
-      const body = encodeURIComponent(`Feedback from SnapScale User:\n\n${feedback}\n\n---\nSent from SnapScale Image Editor`);
-      const mailtoLink = `mailto:myselfmkapps@gmail.com?subject=${subject}&body=${body}`;
+      const formData = new FormData();
+      formData.append('message', feedback);
+      formData.append('_subject', 'SnapScale Tool Feedback');
+      formData.append('_captcha', 'false');
       
-      // Open email client
-      window.open(mailtoLink, '_blank');
-      
-      // Reset form and close dialog
-      setFeedback('');
-      setFeedbackOpen(false);
-      
-      toast({
-        title: 'Feedback Sent!',
-        description: 'Your email client has opened. Please send the email to complete your feedback.',
+      const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
+        method: 'POST',
+        body: formData
       });
+      
+      if (response.ok) {
+        setFeedback('');
+        setFeedbackOpen(false);
+        toast({
+          title: 'Feedback Sent!',
+          description: 'Thank you for your feedback. We received it successfully.',
+        });
+      } else {
+        throw new Error('Failed to send');
+      }
     } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to open email client. Please try again.',
+        description: 'Failed to send feedback. Please try again.',
       });
     } finally {
       setIsSendingFeedback(false);
@@ -535,7 +543,7 @@ export function SnapScaleTool() {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto" onDragOver={handleDragEvents} onDrop={handleDragEvents}>
+    <div className="w-full max-w-7xl mx-auto relative" onDragOver={handleDragEvents} onDrop={handleDragEvents}>
        <Card 
         className="w-full transition-all duration-300"
         onDragEnter={(e) => {handleDragEvents(e); setIsDragging(true);}}
@@ -613,63 +621,19 @@ export function SnapScaleTool() {
                   width={600}
                   height={400}
                   className="rounded-md object-cover w-full h-auto aspect-video opacity-50"
+                  priority
                 />
               </div>
             )}
           </div>
         ) : (
           <div className="p-4 sm:p-6 lg:p-8">
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
                 <div>
                   <h2 className="text-2xl font-bold">Professional Image Editor</h2>
                   <p className="text-muted-foreground">Resize, transform, and enhance your images.</p>
                 </div>
-                <div className="flex gap-2">
-                  {/* Feedback Button */}
-                  <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        className="relative" 
-                        variant="outline"
-                        onClick={() => setFeedbackOpen(true)}
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Feedback
-                        <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse"></span>
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Send Feedback</DialogTitle>
-                        <DialogDescription>
-                          Share your thoughts, suggestions, or report issues directly with the developer.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <Textarea
-                          placeholder="Write your feedback here... (bugs, suggestions, feature requests, etc.)"
-                          value={feedback}
-                          onChange={(e) => setFeedback(e.target.value)}
-                          rows={6}
-                          className="resize-none"
-                        />
-                        <div className="flex gap-2 justify-end">
-                          <Button variant="outline" onClick={() => setFeedbackOpen(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={sendFeedback} disabled={isSendingFeedback}>
-                            {isSendingFeedback ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Send className="h-4 w-4 mr-2" />
-                            )}
-                            Send Feedback
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                  
+                <div className="flex gap-2 flex-wrap">
                   {originalImages.length > 1 && (
                     <Button onClick={downloadAll} disabled={isProcessing}>
                       <Download className="h-4 w-4 mr-2" />
@@ -712,7 +676,7 @@ export function SnapScaleTool() {
               </div>
             )}
             <FormProvider {...form}>
-              <form onSubmit={form.handleSubmit(handleDownload)} className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              <form onSubmit={form.handleSubmit(handleDownload)} className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 items-start">
                 {/* Controls Panel */}
                 <div className="space-y-4">
                     <div className="p-4 border rounded-lg bg-muted/20">
@@ -1103,6 +1067,48 @@ export function SnapScaleTool() {
         )}
       </Card>
       
+      {/* Fixed Feedback Button - Always Visible */}
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogTrigger asChild>
+          <Button 
+            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 rounded-full shadow-lg z-[9999] bg-yellow-400 hover:bg-yellow-500 animate-pulse w-12 h-12 sm:w-10 sm:h-10" 
+            size="icon"
+            onClick={() => setFeedbackOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4 text-blue-600" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Send Feedback</DialogTitle>
+            <DialogDescription>
+              Share your thoughts, suggestions, or report issues directly with the developer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder="Write your feedback here... (bugs, suggestions, feature requests, etc.)"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              rows={6}
+              className="resize-none"
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={sendFeedback} disabled={isSendingFeedback}>
+                {isSendingFeedback ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Send Feedback
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
