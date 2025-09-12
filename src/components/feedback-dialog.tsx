@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { submitFeedback } from '@/app/actions';
 
 export function FeedbackDialog() {
   const [feedback, setFeedback] = useState('');
@@ -35,9 +34,20 @@ export function FeedbackDialog() {
     
     setIsSubmitting(true);
     try {
-      const result = await submitFeedback(feedback.trim());
+      const formData = new FormData();
+      formData.append('message', feedback.trim());
+      formData.append('subject', 'SnapScale Feedback');
+      formData.append('timestamp', new Date().toISOString());
       
-      if (result.success) {
+      const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
         toast({ 
           title: 'Feedback Sent!', 
           description: 'Thank you for your valuable feedback.' 
@@ -45,14 +55,13 @@ export function FeedbackDialog() {
         setFeedback('');
         setIsOpen(false);
       } else {
-        throw new Error('Submission failed');
+        throw new Error('Failed to send feedback');
       }
     } catch (error) {
       console.error('Feedback submission error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send feedback. Please try again later.';
       toast({ 
         title: 'Error', 
-        description: errorMessage, 
+        description: 'Failed to send feedback. Please try again later.', 
         variant: 'destructive' 
       });
     } finally {
