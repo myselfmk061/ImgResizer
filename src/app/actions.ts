@@ -18,7 +18,7 @@ export async function submitFeedback(feedback: string) {
     
     const formData = new FormData();
     formData.append('message', feedback.trim());
-    formData.append('subject', 'ImgResizerApp Feedback');
+    formData.append('subject', 'ImgResizer Feedback');
     formData.append('timestamp', new Date().toISOString());
     
     const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
