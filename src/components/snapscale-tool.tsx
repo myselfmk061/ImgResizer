@@ -168,9 +168,9 @@ export function SnapScaleTool() {
       isUpdatingRef.current = true;
 
       if (isAspectRatioLocked) {
-        if (mode === 'dimensions' && name === 'width' && width) {
+        if (mode === 'dimensions' && name === 'width' && width && width !== form.getValues('width')) {
           form.setValue('height', Math.round(width / ratio), { shouldValidate: true });
-        } else if (mode === 'dimensions' && name === 'height' && height) {
+        } else if (mode === 'dimensions' && name === 'height' && height && height !== form.getValues('height')) {
           form.setValue('width', Math.round(height * ratio), { shouldValidate: true });
         } else if (mode === 'percentage' && name === 'percentage' && percentage) {
           form.setValue('width', Math.round((originalImage.width * percentage) / 100), { shouldValidate: true });
@@ -194,7 +194,7 @@ export function SnapScaleTool() {
 
   useEffect(() => {
     const fetchEstimate = async () => {
-      if (!originalImage || !watchedValues.width || !watchedValues.height) return;
+      if (!originalImage || !watchedValues.width || !watchedValues.height || !watchedValues.quality) return;
       setIsEstimating(true);
       const result = await getEstimatedFileSize({
         width: watchedValues.width,

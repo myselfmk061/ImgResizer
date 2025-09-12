@@ -28,6 +28,7 @@ const EstimateFileSizeOutputSchema = z.object({
   estimatedFileSizeKB: z
     .number()
     .describe('The estimated file size of the resized image in kilobytes.'),
+  reasoning: z.string().describe('A brief explanation of the file size estimate.')
 });
 
 export type EstimateFileSizeOutput = z.infer<typeof EstimateFileSizeOutputSchema>;
@@ -52,7 +53,7 @@ const prompt = ai.definePrompt({
 
   Consider that "low" quality images are heavily compressed, "medium" quality images have a balance between compression and detail, and "high" quality images have minimal compression.
 
-  Return ONLY a numerical value representing the estimated file size in kilobytes. Do not include units or any other text.
+  Provide your reasoning and the estimated file size.
   `,
 });
 
@@ -64,8 +65,12 @@ const estimateFileSizeFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
+    if (!output) {
+      throw new Error('Could not get an estimate from the model.');
+    }
     return {
-      estimatedFileSizeKB: parseFloat(output!.estimatedFileSizeKB.toString()),
+      estimatedFileSizeKB: parseFloat(output.estimatedFileSizeKB.toString()),
+      reasoning: output.reasoning,
     };
   }
 );
