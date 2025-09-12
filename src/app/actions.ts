@@ -7,9 +7,38 @@ import {
 } from '@/ai/flows/estimate-file-size';
 
 export async function submitFeedback(feedback: string) {
-  console.log('Feedback received:', { feedback, timestamp: new Date().toISOString() });
-  // In production, send to your feedback service/database
-  return { success: true };
+  try {
+    if (!feedback || feedback.trim().length === 0) {
+      throw new Error('Feedback cannot be empty');
+    }
+    
+    if (feedback.trim().length > 1000) {
+      throw new Error('Feedback is too long (max 1000 characters)');
+    }
+    
+    // Log feedback with timestamp
+    const feedbackData = {
+      feedback: feedback.trim(),
+      timestamp: new Date().toISOString(),
+      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'Server',
+    };
+    
+    console.log('Feedback received:', feedbackData);
+    
+    // Simulate processing delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // In production, you would send this to:
+    // - Database (Firebase, Supabase, etc.)
+    // - Email service (SendGrid, Resend, etc.)
+    // - Analytics service (Google Analytics, etc.)
+    // - Webhook endpoint
+    
+    return { success: true, message: 'Feedback submitted successfully' };
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    throw new Error(error instanceof Error ? error.message : 'Failed to submit feedback');
+  }
 }
 
 // Simple mathematical estimation as fallback
