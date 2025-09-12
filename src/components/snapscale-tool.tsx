@@ -60,6 +60,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
+import { FeedbackDialog } from './feedback-dialog';
 
 type OriginalImage = {
   src: string;
@@ -112,9 +113,6 @@ export function SnapScaleTool() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedback, setFeedback] = useState('');
-  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const isUpdatingRef = useRef(false);
@@ -170,70 +168,72 @@ export function SnapScaleTool() {
   const handleFiles = useCallback(
     (files: FileList) => {
       if (!files || files.length === 0) return;
-      
-      const newImages: OriginalImage[] = [];
-      let processedCount = 0;
-      
-      Array.from(files).forEach((file, i) => {
+
+      const imageFiles = Array.from(files).filter(file => {
         if (!file.type.startsWith('image/')) {
           toast({
             variant: 'destructive',
             title: 'Invalid File',
             description: `${file.name} is not an image file.`,
           });
-          processedCount++;
-          return;
+          return false;
         }
+        return true;
+      });
 
+      if (imageFiles.length === 0) return;
+
+      const newImages: OriginalImage[] = [];
+      let loadedCount = 0;
+
+      const onImageLoad = () => {
+        loadedCount++;
+        if (loadedCount === imageFiles.length) {
+          setOriginalImages(prev => {
+            const updatedImages = [...prev, ...newImages];
+            if (prev.length === 0 && updatedImages.length > 0) {
+              setCurrentImageIndex(0);
+              const firstImage = updatedImages[0];
+              form.reset({
+                ...form.getValues(),
+                width: firstImage.width,
+                height: firstImage.height,
+              });
+            }
+            return updatedImages;
+          });
+        }
+      };
+
+      imageFiles.forEach(file => {
         const reader = new FileReader();
-        reader.onload = (e) => {
-          if (!e.target?.result) return;
-          
+        reader.onload = e => {
+          if (!e.target?.result) {
+            toast({ variant: 'destructive', title: 'Error', description: `Could not read ${file.name}` });
+            onImageLoad(); // Count this as "loaded" to not block other images
+            return;
+          }
           const img = document.createElement('img');
           img.onload = () => {
-            const newImage: OriginalImage = {
-              id: Math.random().toString(36).substr(2, 9),
+            newImages.push({
+              id: Math.random().toString(36).substring(2, 9),
               src: img.src,
               name: file.name,
               width: img.width,
               height: img.height,
               type: file.type,
-            };
-            newImages.push(newImage);
-            processedCount++;
-
-            if (processedCount === files.length) {
-              setOriginalImages(prev => {
-                const updated = [...prev, ...newImages];
-                if (prev.length === 0 && newImages.length > 0) {
-                  setCurrentImageIndex(0);
-                  form.reset({
-                    ...form.getValues(),
-                    width: newImages[0].width,
-                    height: newImages[0].height,
-                  });
-                }
-                return updated;
-              });
-            }
+            });
+            onImageLoad();
           };
           img.onerror = () => {
-            processedCount++;
-            toast({
-              variant: 'destructive',
-              title: 'Load Error',
-              description: `Failed to load ${file.name}`,
-            });
+            toast({ variant: 'destructive', title: 'Error', description: `Could not load ${file.name}` });
+            onImageLoad(); // Count this as "loaded"
           };
           img.src = e.target.result as string;
         };
         reader.onerror = () => {
-          processedCount++;
-          toast({
-            variant: 'destructive',
-            title: 'Read Error',
-            description: `Failed to read ${file.name}`,
-          });
+          toast({ variant: 'destructive', title: 'Error', description: `Failed to read ${file.name}` });
+          onImageLoad(); // Count this as "loaded"
         };
         reader.readAsDataURL(file);
       });
@@ -270,19 +270,32 @@ export function SnapScaleTool() {
   };
 
   const removeImage = (id: string) => {
-    setOriginalImages(prev => {
-      const removedIndex = prev.findIndex(img => img.id === id);
-      const filtered = prev.filter(img => img.id !== id);
-      
-      if (filtered.length === 0) {
+    const removedIndex = originalImages.findIndex(img => img.id === id);
+    const updatedImages = originalImages.filter(img => img.id !== id);
+    
+    setOriginalImages(updatedImages);
+    
+    if (updatedImages.length === 0) {
         resetTool();
-      } else if (currentImageIndex >= removedIndex) {
-        setCurrentImageIndex(Math.max(0, currentImageIndex - 1));
-      }
-      
-      return filtered;
-    });
-  };
+        return;
+    }
+
+    if (currentImageIndex >= removedIndex) {
+        const newIndex = Math.max(0, currentImageIndex - 1);
+        setCurrentImageIndex(newIndex);
+        
+        if (updatedImages[newIndex]) {
+            const { width, height } = updatedImages[newIndex];
+            form.reset({
+                ...form.getValues(),
+                width,
+                height,
+                percentage: 100
+            });
+        }
+    }
+};
+
 
   const applyFilters = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, values: FormValues) => {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -363,6 +376,18 @@ export function SnapScaleTool() {
 
     return () => subscription.unsubscribe();
   }, [originalImage, form]);
+
+  useEffect(() => {
+    if (!originalImage) return;
+
+    const { width, height } = originalImage;
+    form.reset({
+        ...form.getValues(),
+        width,
+        height,
+        percentage: 100,
+    });
+  }, [currentImageIndex, originalImages, form]);
 
 
   useEffect(() => {
@@ -489,50 +514,6 @@ export function SnapScaleTool() {
         title: 'Load Error',
         description: 'Failed to load sample image.',
       });
-    }
-  };
-
-  const sendFeedback = async () => {
-    if (!feedback.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Empty Feedback',
-        description: 'Please write your feedback before sending.',
-      });
-      return;
-    }
-
-    setIsSendingFeedback(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('message', feedback);
-      formData.append('_subject', 'SnapScale Tool Feedback');
-      formData.append('_captcha', 'false');
-      
-      const response = await fetch('https://formsubmit.co/myselfmkapps@gmail.com', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (response.ok) {
-        setFeedback('');
-        setFeedbackOpen(false);
-        toast({
-          title: 'Feedback Sent!',
-          description: 'Thank you for your feedback. We received it successfully.',
-        });
-      } else {
-        throw new Error('Failed to send');
-      }
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to send feedback. Please try again.',
-      });
-    } finally {
-      setIsSendingFeedback(false);
     }
   };
   
@@ -1068,47 +1049,9 @@ export function SnapScaleTool() {
       </Card>
       
       {/* Fixed Feedback Button - Always Visible */}
-      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-        <DialogTrigger asChild>
-          <Button 
-            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 rounded-full shadow-lg z-[9999] bg-yellow-400 hover:bg-yellow-500 animate-pulse w-12 h-12 sm:w-10 sm:h-10" 
-            size="icon"
-            onClick={() => setFeedbackOpen(true)}
-          >
-            <MessageSquare className="h-4 w-4 text-blue-600" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Send Feedback</DialogTitle>
-            <DialogDescription>
-              Share your thoughts, suggestions, or report issues directly with the developer.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              placeholder="Write your feedback here... (bugs, suggestions, feature requests, etc.)"
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              rows={6}
-              className="resize-none"
-            />
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={sendFeedback} disabled={isSendingFeedback}>
-                {isSendingFeedback ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 mr-2" />
-                )}
-                Send Feedback
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
+          <FeedbackDialog />
+      </div>
 
     </div>
   );
