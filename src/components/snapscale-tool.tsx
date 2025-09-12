@@ -262,6 +262,12 @@ export function SnapScaleTool() {
 
   const uploadPlaceholder = PlaceHolderImages.find(p => p.id === 'upload-placeholder');
   
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto" onDragOver={handleDragEvents} onDrop={handleDragEvents}>
        <Card 
@@ -345,7 +351,7 @@ export function SnapScaleTool() {
                               <FormItem className="flex-1">
                                 <FormLabel>Width</FormLabel>
                                 <FormControl>
-                                  <Input type="number" {...field} />
+                                  <Input type="number" {...field} onKeyDown={handleKeyDown} />
                                 </FormControl>
                               </FormItem>
                             )}
@@ -371,7 +377,7 @@ export function SnapScaleTool() {
                               <FormItem className="flex-1">
                                 <FormLabel>Height</FormLabel>
                                 <FormControl>
-                                  <Input type="number" {...field} />
+                                  <Input type="number" {...field} onKeyDown={handleKeyDown} />
                                 </FormControl>
                               </FormItem>
                             )}
