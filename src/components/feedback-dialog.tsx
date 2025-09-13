@@ -4,20 +4,23 @@ import { useState } from 'react';
 import { MessageSquare, Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 
 export function FeedbackDialog() {
   const [feedback, setFeedback] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async () => {
-    if (!feedback.trim()) {
+    if (!name.trim() || !email.trim() || !feedback.trim()) {
       toast({ 
-        title: 'Empty Feedback', 
-        description: 'Please enter your feedback before sending.', 
+        title: 'Required Fields', 
+        description: 'Please fill in all required fields.', 
         variant: 'destructive' 
       });
       return;
@@ -35,8 +38,8 @@ export function FeedbackDialog() {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('name', 'ImgResizer User');
-      formData.append('email', 'user@imgresizer.app');
+      formData.append('name', name.trim());
+      formData.append('email', email.trim());
       formData.append('message', `Feedback: ${feedback.trim()}\n\nTimestamp: ${new Date().toISOString()}`);
       formData.append('_subject', 'ImgResizer App Feedback');
       formData.append('_captcha', 'false');
@@ -56,6 +59,8 @@ export function FeedbackDialog() {
           description: 'Thank you for your valuable feedback.' 
         });
         setFeedback('');
+        setName('');
+        setEmail('');
         setIsOpen(false);
       } else {
         throw new Error('Failed to send feedback');
@@ -91,14 +96,39 @@ export function FeedbackDialog() {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-medium">Name *</label>
+              <Input
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Email *</label>
+              <Input
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+          </div>
           <div className="space-y-2">
+            <label className="text-sm font-medium">Message *</label>
             <Textarea
               placeholder="Share your thoughts..."
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              rows={5}
+              rows={4}
               disabled={isSubmitting}
               maxLength={1000}
+              required
             />
             <div className="text-xs text-muted-foreground text-right">
               {feedback.length}/1000 characters
@@ -108,7 +138,7 @@ export function FeedbackDialog() {
             <Button variant="ghost" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={!feedback.trim() || isSubmitting}>
+            <Button onClick={handleSubmit} disabled={!name.trim() || !email.trim() || !feedback.trim() || isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
