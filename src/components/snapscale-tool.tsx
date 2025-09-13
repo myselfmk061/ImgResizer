@@ -531,84 +531,97 @@ export function SnapScaleTool() {
             };
             
             // Use custom compression if target size is set
-            if (customSize && values.format === 'jpeg') {
+            if (customSize && parseFloat(customSize) > 0) {
               const targetSizeKB = parseFloat(customSize);
-              compressToTargetSize(targetSizeKB).then((blob) => {
-                if (!blob) { 
-                    toast({ variant: 'destructive', title: 'Download Error', description: `Could not create image blob for ${image.name}.` });
-                    reject(new Error(`Blob creation failed for ${image.name}`));
-                    return;
-                }
-                
-                try {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
-                    a.href = url;
-                    a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
-                    a.style.display = 'none';
-                    
-                    // Add to DOM, click, then remove
-                    document.body.appendChild(a);
-                    
-                    // Try direct click first
-                    try {
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        
-                        toast({ 
-                            title: 'Download Started', 
-                            description: `${originalName}-${targetWidth}x${targetHeight}.${values.format} is downloading.` 
-                        });
-                        
-                        resolve();
-                    } catch (clickError) {
-                        // Fallback: Open in new window if click fails
-                        console.warn('Direct download failed, trying fallback method:', clickError);
-                        
-                        try {
-                            const newWindow = window.open(url, '_blank');
-                            if (newWindow) {
-                                newWindow.document.title = `Download: ${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
-                                toast({ 
-                                    title: 'Download Ready', 
-                                    description: 'Image opened in new tab. Right-click and save to download.' 
-                                });
-                            } else {
-                                throw new Error('Popup blocked');
-                            }
-                        } catch (popupError) {
-                            // Final fallback: Copy URL to clipboard
-                            navigator.clipboard.writeText(url).then(() => {
-                                toast({ 
-                                    title: 'Download URL Copied', 
-                                    description: 'Paste the URL in a new tab to download the image.' 
-                                });
-                            }).catch(() => {
-                                toast({ 
-                                    variant: 'destructive',
-                                    title: 'Download Blocked', 
-                                    description: 'Please check your browser settings and allow downloads.' 
-                                });
-                            });
-                        }
-                        
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        resolve();
-                    }
-                    
-                } catch (downloadError) {
-                    console.error('Download error:', downloadError);
-                    toast({ 
-                        variant: 'destructive', 
-                        title: 'Download Failed', 
-                        description: 'Please check your browser settings and try again.' 
-                    });
-                    reject(downloadError);
-                }
-              }).catch(reject);
+              
+              if (values.format === 'jpeg') {
+                compressToTargetSize(targetSizeKB).then((blob) => {
+                  if (!blob) { 
+                      toast({ variant: 'destructive', title: 'Download Error', description: `Could not create image blob for ${image.name}.` });
+                      reject(new Error(`Blob creation failed for ${image.name}`));
+                      return;
+                  }
+                  
+                  const actualSizeKB = blob.size / 1024;
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
+                  a.href = url;
+                  a.download = `${originalName}-${targetWidth}x${targetHeight}-${actualSizeKB.toFixed(0)}KB.${values.format}`;
+                  a.style.display = 'none';
+                  
+                  document.body.appendChild(a);
+                  try {
+                      a.click();
+                      toast({ 
+                          title: 'Download Started', 
+                          description: `File size: ${actualSizeKB.toFixed(1)}KB (Target: ${targetSizeKB}KB)` 
+                      });
+                  } catch (clickError) {
+                      // Fallback: Open in new window if click fails
+                      console.warn('Direct download failed, trying fallback method:', clickError);
+                      try {
+                          const newWindow = window.open(url, '_blank');
+                          if (newWindow) {
+                              newWindow.document.title = `Download: ${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                              toast({ 
+                                  title: 'Download Ready', 
+                                  description: 'Image opened in new tab. Right-click and save to download.' 
+                              });
+                          } else {
+                              throw new Error('Popup blocked');
+                          }
+                      } catch (popupError) {
+                          // Final fallback: Copy URL to clipboard
+                          navigator.clipboard.writeText(url).then(() => {
+                              toast({ 
+                                  title: 'Download URL Copied', 
+                                  description: 'Paste the URL in a new tab to download the image.' 
+                              });
+                          }).catch(() => {
+                              toast({ 
+                                  variant: 'destructive',
+                                  title: 'Download Blocked', 
+                                  description: 'Please check your browser settings and allow downloads.' 
+                              });
+                          });
+                      }
+                  } finally {
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      resolve();
+                  }
+                }).catch(reject);
+              } else {
+                // For PNG/WebP, use standard compression
+                canvas.toBlob((blob) => {
+                  if (!blob) { 
+                      toast({ variant: 'destructive', title: 'Download Error', description: `Could not create image blob for ${image.name}.` });
+                      reject(new Error(`Blob creation failed for ${image.name}`));
+                      return;
+                  }
+                  
+                  const actualSizeKB = blob.size / 1024;
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
+                  a.href = url;
+                  a.download = `${originalName}-${targetWidth}x${targetHeight}-${actualSizeKB.toFixed(0)}KB.${values.format}`;
+                  a.style.display = 'none';
+                  
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  
+                  toast({ 
+                      title: 'Download Started', 
+                      description: `File size: ${actualSizeKB.toFixed(1)}KB (Note: Custom size works best with JPEG)` 
+                  });
+                  
+                  resolve();
+                }, mimeType, quality);
+              }
             } else {
               // Standard compression
               canvas.toBlob((blob) => {
@@ -618,69 +631,55 @@ export function SnapScaleTool() {
                     return;
                 }
                 
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
+                a.href = url;
+                a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                a.style.display = 'none';
+                
+                document.body.appendChild(a);
+                
                 try {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    const originalName = image.name.substring(0, image.name.lastIndexOf('.'));
-                    a.href = url;
-                    a.download = `${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
-                    a.style.display = 'none';
+                    a.click();
                     
-                    document.body.appendChild(a);
+                    toast({ 
+                        title: 'Download Started', 
+                        description: `${originalName}-${targetWidth}x${targetHeight}.${values.format} is downloading.` 
+                    });
+                    
+                } catch (clickError) {
+                    console.warn('Direct download failed, trying fallback method:', clickError);
                     
                     try {
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        
-                        toast({ 
-                            title: 'Download Started', 
-                            description: `${originalName}-${targetWidth}x${targetHeight}.${values.format} is downloading.` 
-                        });
-                        
-                        resolve();
-                    } catch (clickError) {
-                        console.warn('Direct download failed, trying fallback method:', clickError);
-                        
-                        try {
-                            const newWindow = window.open(url, '_blank');
-                            if (newWindow) {
-                                newWindow.document.title = `Download: ${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
-                                toast({ 
-                                    title: 'Download Ready', 
-                                    description: 'Image opened in new tab. Right-click and save to download.' 
-                                });
-                            } else {
-                                throw new Error('Popup blocked');
-                            }
-                        } catch (popupError) {
-                            navigator.clipboard.writeText(url).then(() => {
-                                toast({ 
-                                    title: 'Download URL Copied', 
-                                    description: 'Paste the URL in a new tab to download the image.' 
-                                });
-                            }).catch(() => {
-                                toast({ 
-                                    variant: 'destructive',
-                                    title: 'Download Blocked', 
-                                    description: 'Please check your browser settings and allow downloads.' 
-                                });
+                        const newWindow = window.open(url, '_blank');
+                        if (newWindow) {
+                            newWindow.document.title = `Download: ${originalName}-${targetWidth}x${targetHeight}.${values.format}`;
+                            toast({ 
+                                title: 'Download Ready', 
+                                description: 'Image opened in new tab. Right-click and save to download.' 
                             });
+                        } else {
+                            throw new Error('Popup blocked');
                         }
-                        
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        resolve();
+                    } catch (popupError) {
+                        navigator.clipboard.writeText(url).then(() => {
+                            toast({ 
+                                title: 'Download URL Copied', 
+                                description: 'Paste the URL in a new tab to download the image.' 
+                            });
+                        }).catch(() => {
+                            toast({ 
+                                variant: 'destructive',
+                                title: 'Download Blocked', 
+                                description: 'Please check your browser settings and allow downloads.' 
+                            });
+                        });
                     }
-                    
-                } catch (downloadError) {
-                    console.error('Download error:', downloadError);
-                    toast({ 
-                        variant: 'destructive', 
-                        title: 'Download Failed', 
-                        description: 'Please check your browser settings and try again.' 
-                    });
-                    reject(downloadError);
+                } finally {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    resolve();
                 }
               }, mimeType, quality);
             }
@@ -1375,5 +1374,7 @@ export function SnapScaleTool() {
     </div>
   );
 }
+
+    
 
     
