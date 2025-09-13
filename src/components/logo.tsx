@@ -1,13 +1,12 @@
-import Image from 'next/image';
+import { ImageUp } from 'lucide-react';
 
 export function Logo() {
   return (
-    <Image
-      src="https://i.imghippo.com/files/oRi4335cO.png"
-      alt="ImgResizer Logo"
-      width={120}
-      height={28}
-      priority
-    />
+    <div className="flex items-center gap-2">
+      <ImageUp className="h-6 w-6 text-primary" />
+      <h1 className="text-xl font-bold font-headline tracking-tight">
+        ImgResizer
+      </h1>
+    </div>
   );
 }
