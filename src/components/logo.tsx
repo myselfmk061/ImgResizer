@@ -1,15 +1,44 @@
-import { cn } from '@/lib/utils';
+import React from 'react';
 
-export function Logo({ className }: { className?: string }) {
+export function Logo() {
   return (
-    <div className={cn('flex items-center gap-2', className)}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M7 17L17 7" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M17 17H17.01" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M11 7H17V13" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21Z" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinejoin="round"/>
+    <a href="/" className="flex items-center gap-3">
+      <svg
+        width="28"
+        height="28"
+        viewBox="0 0 48 48"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M42 6H6C4.89543 6 4 6.89543 4 8V40C4 41.1046 4.89543 42 6 42H42C43.1046 42 44 41.1046 44 40V8C44 6.89543 43.1046 6 42 6Z"
+          stroke="#DD5828"
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M29.0049 18.9999L40.002 18.9999V29.997"
+          stroke="#DD5828"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M18 18H8V34H24"
+          stroke="#DD5828"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M40 19L18 41"
+          stroke="#DD5828"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
-      <h1 className="text-xl font-bold tracking-tight">ImgResizer</h1>
-    </div>
+      <span className="text-xl font-semibold">ImgResizer</span>
+    </a>
   );
 }
