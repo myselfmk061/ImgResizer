@@ -81,13 +81,13 @@ export function FeedbackDialog() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button 
-          variant="outline"
+          variant="default"
           size="icon"
-          className="rounded-full shadow-lg w-14 h-14 bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 hover:scale-110 hover:shadow-xl animate-bounce relative"
+          className="rounded-full shadow-xl w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 transition-all duration-300 hover:scale-105 hover:shadow-2xl relative group"
         >
-          <MessageSquare className="h-6 w-6 transition-transform duration-300" />
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full animate-pulse">
-            <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75"></div>
+          <MessageSquare className="h-7 w-7 transition-transform duration-300 group-hover:scale-110" />
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-lg">
+            <div className="absolute inset-1 bg-emerald-400 rounded-full animate-pulse"></div>
           </div>
         </Button>
       </DialogTrigger>
