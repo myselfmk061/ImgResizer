@@ -17,6 +17,11 @@ export default function Home() {
       
       <div className="border-t py-4 px-4 bg-muted/30">
         <div className="container mx-auto text-center">
+          <div className="mb-2">
+            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
           <p className="text-sm text-muted-foreground">
             Developed by <span className="font-semibold text-foreground">Myselfmk Apps</span> • Built with Next.js & Tailwind CSS
           </p>
@@ -26,9 +31,7 @@ export default function Home() {
       <footer className="border-t py-6 px-4">
         <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex gap-4 text-sm">
-            <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
-              Privacy Policy
-            </Link>
+            
           </div>
         </div>
       </footer>
