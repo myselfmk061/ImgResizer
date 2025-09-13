@@ -553,9 +553,41 @@ export function SnapScaleTool() {
                   document.body.appendChild(a);
                   try {
                       a.click();
+                      // Success animation and voice
+                      const successDiv = document.createElement('div');
+                      successDiv.innerHTML = `
+                        <div class="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+                          <div class="bg-green-500 text-white px-8 py-4 rounded-lg shadow-xl animate-bounce">
+                            <div class="flex items-center gap-3">
+                              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                              </svg>
+                              <span class="text-lg font-bold">Download Successful!</span>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                      document.body.appendChild(successDiv);
+                      
+                      // Voice notification
+                      if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance('Download completed successfully!');
+                        utterance.rate = 0.8;
+                        utterance.pitch = 1.2;
+                        speechSynthesis.speak(utterance);
+                      }
+                      
+                      // Remove animation after 3 seconds
+                      setTimeout(() => {
+                        if (document.body.contains(successDiv)) {
+                          document.body.removeChild(successDiv);
+                        }
+                      }, 3000);
+                      
                       toast({ 
-                          title: 'Download Started', 
-                          description: `File size: ${actualSizeKB.toFixed(1)}KB (Target: ${targetSizeKB}KB)` 
+                          title: '✅ Download Successful!', 
+                          description: `File size: ${actualSizeKB.toFixed(1)}KB (Target: ${targetSizeKB}KB)`,
+                          className: 'border-green-500 bg-green-50 text-green-900'
                       });
                   } catch (clickError) {
                       // Fallback: Open in new window if click fails
@@ -804,7 +836,7 @@ export function SnapScaleTool() {
   return (
     <div className="w-full max-w-7xl mx-auto relative" onDragOver={handleDragEvents} onDrop={handleDragEvents}>
        <Card 
-        className="w-full transition-all duration-300"
+        className="w-full transition-all duration-500 hover:shadow-xl animate-in fade-in slide-in-from-bottom duration-700"
         onDragEnter={(e) => {handleDragEvents(e); setIsDragging(true);}}
        >
         {originalImages.length === 0 ? (
@@ -815,16 +847,16 @@ export function SnapScaleTool() {
           >
             {isDragging && <div className="absolute inset-0 bg-primary/10 z-10 rounded-lg border-2 border-dashed border-primary"></div>}
             <div className="flex flex-col items-center justify-center text-center gap-6 py-12">
-              <UploadCloud className="w-16 h-16 text-muted-foreground" />
+              <UploadCloud className="w-16 h-16 text-muted-foreground animate-bounce" />
               <div className="space-y-2">
                 <h3 className="text-2xl font-bold">Upload Your Photo</h3>
                 <p className="text-muted-foreground">Drag & drop an image here, or click to browse.</p>
               </div>
               <div className="flex gap-4">
-                <Button onClick={() => fileInputRef.current?.click()}>
+                <Button onClick={() => fileInputRef.current?.click()} className="transition-all duration-300 hover:scale-105">
                   Browse Files
                 </Button>
-                <Button variant="outline" onClick={() => setShowSamples(!showSamples)}>
+                <Button variant="outline" onClick={() => setShowSamples(!showSamples)} className="transition-all duration-300 hover:scale-105">
                   Try Sample Images
                 </Button>
               </div>
@@ -1321,11 +1353,11 @@ export function SnapScaleTool() {
                   <Button 
                     type="button" 
                     size="lg" 
-                    className="w-full" 
+                    className="w-full transition-all duration-300 hover:scale-105 hover:shadow-lg group" 
                     disabled={isProcessing || !originalImage}
                     onClick={() => handleDownload(form.getValues())}
                   >
-                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
+                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4 transition-transform duration-300 group-hover:scale-110" />}
                     Download Image
                   </Button>
                 </div>

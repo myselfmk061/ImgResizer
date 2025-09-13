@@ -5,26 +5,26 @@ import { Logo } from '@/components/logo';
 export default function Home() {
   return (
     <div className="flex flex-col min-h-dvh bg-background text-foreground">
-      <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm">
+      <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm backdrop-blur-sm bg-background/80 sticky top-0 z-40 animate-in slide-in-from-top duration-300">
         <div className="flex items-center gap-2">
           <Logo />
         </div>
       </header>
-      <main className="flex-1 flex flex-col items-center justify-start p-4 sm:p-6 md:p-10">
+      <main className="flex-1 flex flex-col items-center justify-start p-4 sm:p-6 md:p-10 animate-in fade-in duration-500">
         <SnapScaleTool />
       </main>
       
-      <div className="border-t py-4 px-4 bg-muted/30">
+      <div className="border-t py-4 px-4 bg-muted/30 animate-in slide-in-from-bottom duration-500">
         <div className="container mx-auto text-center">
           <div className="mb-2">
-            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-all duration-300 hover:scale-105 inline-block">
               Privacy Policy
             </Link>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Developed by <span className="font-semibold text-foreground">Myselfmk Apps</span> • Make with ❣️ in India
+          <p className="text-sm text-muted-foreground animate-in fade-in duration-700 delay-200">
+            Developed by <span className="font-semibold text-foreground hover:text-primary transition-colors duration-300 cursor-pointer">Myselfmk Apps</span> • Made with ❣️ in India
           </p>
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="text-sm text-muted-foreground mt-2 animate-in fade-in duration-700 delay-300">
             © 2024 ImgResizer. All rights reserved.
           </p>
         </div>
