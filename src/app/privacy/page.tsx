@@ -10,11 +10,7 @@ export default function PrivacyPolicy() {
   const router = useRouter();
   
   const handleBackClick = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push('/');
-    }
+    router.push('/');
   };
   
   return (
