@@ -1,18 +1,8 @@
 'use client';
 
-'use client';
-
-import { ImageUp, ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
+import { ImageUp } from 'lucide-react';
 
 export default function PrivacyPolicy() {
-  const router = useRouter();
-  
-  const handleBackClick = () => {
-    router.push('/');
-  };
-  
   return (
     <div className="flex flex-col min-h-dvh bg-background text-foreground">
       <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm">
@@ -26,14 +16,6 @@ export default function PrivacyPolicy() {
       
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            className="mb-4" 
-            onClick={handleBackClick}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Home
-          </Button>
           <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
           <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
         </div>
