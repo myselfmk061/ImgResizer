@@ -1,5 +1,6 @@
+'use client';
+
 import { ImageUp, ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export default function PrivacyPolicy() {
@@ -16,12 +17,20 @@ export default function PrivacyPolicy() {
       
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-6">
-          <Link href="/">
-            <Button variant="ghost" className="mb-4">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Home
-            </Button>
-          </Link>
+          <Button 
+            variant="ghost" 
+            className="mb-4" 
+            onClick={() => {
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                window.location.href = '/';
+              }
+            }}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Home
+          </Button>
           <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
           <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
         </div>
