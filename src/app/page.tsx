@@ -1,4 +1,3 @@
-import { ImageUp } from 'lucide-react';
 import Link from 'next/link';
 import { SnapScaleTool } from '@/components/snapscale-tool';
 import { Logo } from '@/components/logo';
@@ -23,7 +22,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="text-sm text-muted-foreground">
-            Developed by <span className="font-semibold text-foreground">Myselfmk Apps</span> • Built with Next.js & Tailwind CSS
+            Developed by <span className="font-semibold text-foreground">Myselfmk Apps</span> • Make with ❣️ in India
           </p>
           <p className="text-sm text-muted-foreground mt-2">
             © 2024 ImgResizer. All rights reserved.
