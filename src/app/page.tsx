@@ -40,7 +40,7 @@ export default function Home() {
             Developed by <span className="font-semibold text-foreground hover:text-primary transition-colors duration-300 cursor-pointer">Myselfmk Apps</span> • Made with ❣️ in India
           </p>
           <p className="text-sm text-muted-foreground mt-2 animate-in fade-in duration-700 delay-300">
-            © 2024 ImgResizer. All rights reserved.
+            © 2025 ImgResizer. All rights reserved.
           </p>
         </div>
       </div>
