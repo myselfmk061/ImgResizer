@@ -1,9 +1,22 @@
 'use client';
 
+'use client';
+
 import { ImageUp, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 export default function PrivacyPolicy() {
+  const router = useRouter();
+  
+  const handleBackClick = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+  
   return (
     <div className="flex flex-col min-h-dvh bg-background text-foreground">
       <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm">
@@ -20,13 +33,7 @@ export default function PrivacyPolicy() {
           <Button 
             variant="ghost" 
             className="mb-4" 
-            onClick={() => {
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                window.location.href = '/';
-              }
-            }}
+            onClick={handleBackClick}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Home
