@@ -1,17 +1,21 @@
 'use client';
 
-import { ImageUp } from 'lucide-react';
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 export default function PrivacyPolicy() {
   return (
     <div className="flex flex-col min-h-dvh bg-background text-foreground">
-      <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm">
+      <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm justify-between">
         <div className="flex items-center gap-2">
-          <ImageUp className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold tracking-tight">
-            ImgResizer
+            ImgResizer - Smart Photo resizer
           </h1>
         </div>
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Home
+        </Link>
       </header>
       
       <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
