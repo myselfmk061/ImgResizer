@@ -8,16 +8,29 @@ export function Logo({ className }: { className?: string }) {
         width="28"
         height="28"
         viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-primary"
+        className={cn(className)}
       >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" x2="12" y1="3" y2="15" />
+        <defs>
+          <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style={{ stopColor: '#FF8A00', stopOpacity: 1 }} />
+            <stop offset="100%" style={{ stopColor: '#E52E71', stopOpacity: 1 }} />
+          </linearGradient>
+        </defs>
+        <g fill="none" stroke="url(#logoGradient)" strokeWidth="1.5">
+          <rect
+            x="1.5"
+            y="1.5"
+            width="21"
+            height="21"
+            rx="4"
+            ry="4"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 19V9h10m0 0l-4-4m4 4l-4 4"
+          />
+        </g>
       </svg>
       <h1 className="text-xl font-bold tracking-tight">ImgResizer</h1>
     </div>
