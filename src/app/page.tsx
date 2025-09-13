@@ -1,8 +1,22 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { SnapScaleTool } from '@/components/snapscale-tool';
 import { Logo } from '@/components/logo';
 
 export default function Home() {
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    toast({
+      title: '🎉 Welcome to ImgResizer!',
+      description: 'Professional image resizing tool. Upload your images to resize, compress, and enhance them.',
+      duration: 4000,
+    });
+  }, [toast]);
+  
   return (
     <div className="flex flex-col min-h-dvh bg-background text-foreground">
       <header className="px-4 lg:px-6 h-16 flex items-center border-b shadow-sm backdrop-blur-sm bg-background/80 sticky top-0 z-40 animate-in slide-in-from-top duration-300">
