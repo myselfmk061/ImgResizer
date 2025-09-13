@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 import { SnapScaleTool } from '@/components/snapscale-tool';
 import { Logo } from '@/components/logo';
 
@@ -13,7 +14,7 @@ export default function Home() {
     toast({
       title: '🎉 Welcome to ImgResizer!',
       description: 'Professional image resizing tool. Upload your images to resize, compress, and enhance them.',
-      duration: 4000,
+      duration: Infinity,
     });
   }, [toast]);
   
@@ -51,6 +52,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      <Toaster />
     </div>
   );
 }
