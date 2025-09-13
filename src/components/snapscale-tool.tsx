@@ -1319,7 +1319,13 @@ export function SnapScaleTool() {
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
-                  <Button type="submit" size="lg" className="w-full" disabled={isProcessing}>
+                  <Button 
+                    type="button" 
+                    size="lg" 
+                    className="w-full" 
+                    disabled={isProcessing || !originalImage}
+                    onClick={() => handleDownload(form.getValues())}
+                  >
                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4" />}
                     Download Image
                   </Button>
