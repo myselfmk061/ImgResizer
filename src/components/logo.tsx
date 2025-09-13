@@ -4,38 +4,24 @@ export function Logo() {
   return (
     <a href="/" className="flex items-center gap-3">
       <svg
-        width="28"
-        height="28"
-        viewBox="0 0 48 48"
+        width="32"
+        height="32"
+        viewBox="0 0 32 32"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
+        <rect width="32" height="32" rx="6" fill="#F7F7F7" />
         <path
-          d="M42 6H6C4.89543 6 4 6.89543 4 8V40C4 41.1046 4.89543 42 6 42H42C43.1046 42 44 41.1046 44 40V8C44 6.89543 43.1046 6 42 6Z"
-          stroke="#DD5828"
-          strokeWidth="4"
-          strokeLinejoin="round"
+          d="M10 9H13V23H10V9Z"
+          fill="#F2762A"
         />
         <path
-          d="M29.0049 18.9999L40.002 18.9999V29.997"
-          stroke="#DD5828"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          d="M13 9H18.554C20.9925 9 22.1263 10.2222 22.1263 12.5C22.1263 14.7778 20.9925 16 18.554 16H13V9Z"
+          fill="#DD5828"
         />
         <path
-          d="M18 18H8V34H24"
-          stroke="#DD5828"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M40 19L18 41"
-          stroke="#DD5828"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          d="M13 16H18.5L22 23H18L15.5 17.5H13V16Z"
+          fill="#DD5828"
         />
       </svg>
       <span className="text-xl font-semibold">ImgResizer</span>
