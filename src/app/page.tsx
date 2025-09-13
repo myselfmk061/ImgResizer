@@ -25,6 +25,9 @@ export default function Home() {
           <p className="text-sm text-muted-foreground">
             Developed by <span className="font-semibold text-foreground">Myselfmk Apps</span> • Built with Next.js & Tailwind CSS
           </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            © 2024 ImgResizer. All rights reserved.
+          </p>
         </div>
       </div>
       
