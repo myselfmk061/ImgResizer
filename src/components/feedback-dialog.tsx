@@ -83,11 +83,11 @@ export function FeedbackDialog() {
         <Button 
           variant="default"
           size="icon"
-          className="rounded-full shadow-xl w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 transition-all duration-300 hover:scale-105 hover:shadow-2xl relative group"
+          className="rounded-full shadow-xl w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0 transition-all duration-300 hover:scale-105 hover:shadow-2xl animate-bounce relative group"
         >
           <MessageSquare className="h-7 w-7 transition-transform duration-300 group-hover:scale-110" />
-          <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-lg">
-            <div className="absolute inset-1 bg-emerald-400 rounded-full animate-pulse"></div>
+          <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white shadow-lg animate-pulse">
+            <div className="absolute inset-1 bg-emerald-400 rounded-full animate-ping opacity-75"></div>
           </div>
         </Button>
       </DialogTrigger>
